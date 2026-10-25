@@ -1,4 +1,4 @@
-# PioSwap
+# Aurix
 
 A premium, responsive multichain DEX interface starter built with React, TypeScript and Vite.
 
@@ -34,3 +34,16 @@ PIO is deliberately not assigned a price, logo, contract address, or tradability
 ## Market-data attribution
 
 Market information and token imagery are fetched from CoinGecko's public API. API access and availability are subject to CoinGecko's terms and rate limits. A public keyless endpoint is used for ease of local preview; for a deployed service, use a server-side proxy and a properly managed API key if required. Never place private API keys in a `VITE_*` environment variable.
+
+
+## Latest UI update
+
+- Brand updated to Aurix in the visible interface.
+- Added a Liquidity Provider Referral Program page with the proposed 50/30/10/5/3/2 fee-share model and an interactive fee calculator. This is a UI model only; no fees are collected or paid.
+- Swap now requires selecting a source and destination network separately, then shows tokens filtered by the selected network. The token list is an illustrative UI allowlist, not a verified contract/token registry.
+- Increased the density, thickness and metallic contrast of the gold particle ribbon, and refined responsive styling.
+- Swap and cross-chain execution remain disabled because no validated quote/bridge provider is integrated. A wallet connection does not mean trading is live.
+
+## Important referral economics note
+
+The percentages add to 100% of the defined fee pool: platform 50%, liquidity provider 30%, direct LP referrer 10%, level 2 5%, level 3 3%, and level 4 2%. Before implementing payouts, define exactly which fee amount is the pool (for example, protocol fee only), how missing referral levels are handled, rounding, anti-sybil rules, eligibility, claim gas, and whether distributions are on-chain or custodial. Do not deploy fee-sharing contracts without independent review.

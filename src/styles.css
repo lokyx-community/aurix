@@ -32,3 +32,44 @@ body{margin:0;background:var(--bg);color:var(--text)}button,input,select{font:in
 .theme-light .primary-button{background:linear-gradient(135deg,#f8dc8c 0%,#e9bd4f 48%,#d6a12e 100%);color:#261d08;box-shadow:0 7px 24px rgba(180,128,18,.18)}
 .primary-button{background:linear-gradient(135deg,#f5d98e 0%,#e8bd55 45%,#c9962c 100%);color:#2a210d;box-shadow:0 7px 24px rgba(190,144,41,.18)}
 @media(max-width:760px){.market-cap-col{display:none}}
+
+
+/* Aurix luxury pass: richer metallic gold, thicker ribbon, responsive consistency */
+:root{--gold:#d8ad48;--gold-strong:#edca72;--gold-dim:#92712d}
+.hero{isolation:isolate;overflow:hidden;position:relative;}
+.particle-ribbon{z-index:0;opacity:.98;filter:drop-shadow(0 0 8px rgba(224,178,65,.24));}
+.hero-content{position:relative;z-index:2}
+.hero::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;background:linear-gradient(90deg,var(--panel) 0%,color-mix(in srgb,var(--panel) 88%,transparent) 32%,transparent 82%);opacity:.52}
+.theme-light .particle-ribbon{opacity:1;mix-blend-mode:multiply;filter:contrast(1.55) saturate(1.7) drop-shadow(0 0 5px rgba(181,127,17,.2))}
+.theme-light .hero::after{background:linear-gradient(90deg,#fbf8f0 0%,rgba(251,248,240,.86) 34%,rgba(251,248,240,.08) 85%);opacity:.74}
+.primary-button{background:linear-gradient(120deg,#fff0b6 0%,#f2d37b 20%,#d8a938 52%,#f3d77f 78%,#bd8a26 100%);background-size:180% 100%;transition:background-position .45s ease,transform .25s ease,box-shadow .25s ease;box-shadow:0 8px 28px rgba(196,145,35,.23),inset 0 1px rgba(255,255,255,.62)}
+.primary-button:hover{background-position:100% 0;transform:translateY(-1px);box-shadow:0 12px 32px rgba(196,145,35,.3),inset 0 1px rgba(255,255,255,.72)}
+.panel,.feature-card,.referral-hero{transition:border-color .25s ease,box-shadow .3s ease,transform .3s cubic-bezier(.2,.8,.2,1)}
+.panel:hover{box-shadow:0 12px 38px rgba(0,0,0,.055)}
+.chain-pair-selectors{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px}
+.chain-pair-selectors label{display:flex;flex-direction:column;gap:7px;min-width:0}
+.chain-pair-selectors label span{font-size:9px;letter-spacing:.12em;color:var(--muted);font-weight:700}
+.chain-pair-selectors select{width:100%;min-width:0;background:var(--panel-2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:12px;font:inherit;font-size:12px;outline:none}
+.swap-luxury-card{position:relative}
+.token-search-input{width:100%;margin:6px 0 10px}
+.picker-empty{padding:20px 12px;font-size:11px;color:var(--muted);text-align:center}
+.inline-warning{display:flex;gap:9px;align-items:flex-start;margin:10px 0;padding:12px;border:1px solid color-mix(in srgb,var(--gold) 40%,var(--border));border-radius:10px;background:color-mix(in srgb,var(--gold) 8%,var(--panel));font-size:10px;line-height:1.6;color:var(--muted)}
+.referral-hero{position:relative;overflow:hidden;padding:clamp(24px,4vw,48px);margin-bottom:18px;background:radial-gradient(ellipse at 84% 20%,rgba(220,175,65,.19),transparent 40%),linear-gradient(125deg,var(--panel),var(--panel-2));}
+.referral-glow{position:absolute;width:250px;height:250px;right:-80px;top:-100px;border-radius:50%;border:1px solid rgba(220,175,65,.25);box-shadow:0 0 0 18px rgba(220,175,65,.035),0 0 0 42px rgba(220,175,65,.025),0 0 65px rgba(220,175,65,.12);pointer-events:none}
+.referral-hero h2{font-family:'Playfair Display',Georgia,serif;font-weight:500;font-size:clamp(34px,5vw,56px);letter-spacing:-.05em;line-height:1.06;margin:18px 0 12px;position:relative}
+.referral-hero h2 em{color:var(--gold-strong);font-weight:400}
+.referral-hero p{max-width:530px;color:var(--muted);font-size:12px;line-height:1.8;position:relative}
+.referral-actions{display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-top:22px;position:relative}
+.referral-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(280px,.85fr);gap:16px;align-items:start}
+.referral-split-panel,.referral-calculator,.referral-link-card,.referral-rules{padding:20px}
+.referral-split-panel h3,.referral-calculator h3,.referral-link-card h3,.referral-rules h3{font-size:17px;margin:6px 0 14px;letter-spacing:-.03em}
+.split-row{display:grid;grid-template-columns:30px minmax(0,1fr) 44px;gap:12px;align-items:center;padding:15px 0;border-bottom:1px solid var(--border)}
+.split-rank{font-family:'DM Mono',monospace;font-size:10px;color:var(--gold-strong)}
+.split-copy{display:flex;flex-direction:column;gap:5px;min-width:0}.split-copy strong{font-size:12px}.split-copy>span{font-size:10px;line-height:1.5;color:var(--muted)}
+.split-pct{text-align:right;font-family:'DM Mono',monospace;font-size:14px;color:var(--gold-strong)}
+.split-bar{height:3px;background:var(--panel-2);border-radius:5px;overflow:hidden;margin-top:4px}.split-bar span{display:block;height:100%;background:linear-gradient(90deg,#b98520,#ffe4a0,#d4a53a);border-radius:5px}
+.fee-note{display:flex;gap:8px;margin-top:16px;font-size:10px;line-height:1.7;color:var(--muted)}.fee-note svg{flex-shrink:0;color:var(--gold-strong)}
+.referral-side{display:grid;gap:16px}.referral-calculator label{display:block;font-size:10px;color:var(--muted);margin:16px 0 7px}.referral-calculator .text-input{width:100%;font-size:14px;padding:12px}
+.calculator-list{margin-top:14px}.calculator-list>div,.calculator-total{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--border);font-size:10px}.calculator-list span,.calculator-total span{color:var(--muted)}.calculator-list strong,.calculator-total strong{font-family:'DM Mono',monospace;font-size:11px}.calculator-total{border:0;border-top:1px solid var(--gold-dim);margin-top:5px;padding-top:13px;font-weight:700}.referral-link-card p,.referral-link-card small{font-size:10px;line-height:1.7;color:var(--muted)}.referral-link-field{overflow-wrap:anywhere;background:var(--panel-2);border:1px solid var(--border);border-radius:8px;padding:11px;margin:14px 0;font:10px 'DM Mono',monospace;color:var(--muted)}.referral-link-card .secondary-button{margin-bottom:12px}.referral-rules{margin-top:16px}.referral-rules .explainer-grid{margin-top:12px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--gold-strong);outline-offset:2px}
+@media(max-width:760px){.chain-pair-selectors{grid-template-columns:1fr 1fr;gap:8px}.chain-pair-selectors select{padding:10px 8px;font-size:11px}.referral-grid{grid-template-columns:1fr}.referral-hero{margin-left:0;margin-right:0;padding:24px 20px}.referral-hero h2{font-size:38px}.referral-actions{align-items:flex-start;flex-direction:column;gap:12px}.referral-split-panel,.referral-calculator,.referral-link-card,.referral-rules{padding:15px}.split-row{grid-template-columns:24px minmax(0,1fr) 36px;gap:8px}.split-copy strong{font-size:11px}.split-copy>span{font-size:9px}.split-pct{font-size:12px}.referral-rules .explainer-grid{grid-template-columns:1fr}.swap-layout{min-width:0}.swap-main{min-width:0}.amount-row{gap:8px}.token-select{flex-shrink:0}.asset-picker{max-height:65vh;overflow:auto}.page-content{min-width:0}.topbar{gap:8px}.brand{font-size:16px}.top-actions{gap:3px}.connect-button{max-width:42px;overflow:hidden}.hero::after{opacity:.35}.particle-ribbon{opacity:.88}}

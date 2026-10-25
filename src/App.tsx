@@ -7,7 +7,7 @@ import {
   TrendingUp, Wallet, X, Zap
 } from 'lucide-react'
 
-type Page = 'Overview' | 'Swap' | 'Markets' | 'Advanced Trading' | 'Limit Orders' | 'Portfolio' | 'Earn' | 'Cross-Chain' | 'Activity' | 'Token Explorer' | 'Analytics' | 'Security Center' | 'Settings'
+type Page = 'Overview' | 'Swap' | 'Markets' | 'Advanced Trading' | 'Limit Orders' | 'Portfolio' | 'Earn' | 'Cross-Chain' | 'Activity' | 'Token Explorer' | 'Analytics' | 'Security Center' | 'Referral Program' | 'Settings'
 type Asset = { symbol: string; name: string; color: string; letter: string; logo?: string; id?: string; price: string; change: string; positive: boolean; marketCap?: number; volume?: number; rank?: number }
 
 const pages: { name: Page; icon: typeof LayoutDashboard; group: string }[] = [
@@ -23,6 +23,7 @@ const pages: { name: Page; icon: typeof LayoutDashboard; group: string }[] = [
   { name: 'Token Explorer', icon: Compass, group: 'DISCOVER' },
   { name: 'Analytics', icon: LineChart, group: 'DISCOVER' },
   { name: 'Security Center', icon: ShieldCheck, group: 'DISCOVER' },
+  { name: 'Referral Program', icon: Sparkles, group: 'MANAGE' },
   { name: 'Settings', icon: Settings2, group: 'PREFERENCES' },
 ]
 const seedAssets: Asset[] = [
@@ -65,7 +66,7 @@ function ParticleRibbon() {
       ctx.clearRect(0, 0, w, h)
       const t = reduced ? 0.4 : frame * 0.007
       // A quiet flowing ribbon made from fine gold particle paths; no external asset needed.
-      for (let strand = 0; strand < 9; strand++) {
+      for (let strand = 0; strand < 25; strand++) {
         ctx.beginPath()
         for (let i = 0; i <= 110; i++) {
           const u = i / 110
@@ -75,11 +76,11 @@ function ParticleRibbon() {
           const y = h * (0.52 + (u - 0.5) * 0.14) + wave + curl + (strand - 2.5) * 4
           if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y)
         }
-        ctx.strokeStyle = `rgba(194,145,39,${0.10 + strand * 0.022})`
-        ctx.lineWidth = strand % 2 === 0 ? 1.1 : 0.65
+        ctx.strokeStyle = `rgba(${strand % 4 === 0 ? '255,224,142' : strand % 3 === 0 ? '226,177,64' : '190,132,28'},${0.12 + (strand % 7) * 0.025})`
+        ctx.lineWidth = strand % 5 === 0 ? 3.4 : strand % 2 === 0 ? 2.1 : 1.35
         ctx.stroke()
       }
-      for (let i = 0; i < 180; i++) {
+      for (let i = 0; i < 340; i++) {
         const u = ((i / 105) + t * 0.018) % 1
         const x = w * (0.05 + u * 0.9)
         const y = h * (0.5 + Math.sin(u * 7.1 + t) * 0.12 + Math.sin(u * 3.6 - t * 0.62) * 0.13)
@@ -100,7 +101,7 @@ function ParticleRibbon() {
 }
 
 function Brand() {
-  return <div className="brand"><span className="brand-mark">P<span>·</span></span><span>pio<span className="brand-light">swap</span></span></div>
+  return <div className="brand"><span className="brand-mark">P<span>·</span></span><span>aur<span className="brand-light">ix</span></span></div>
 }
 
 function App() {
@@ -126,9 +127,9 @@ function App() {
   const [modal, setModal] = useState<'connect'|'quote'|'none'>('none')
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('pioswap-theme')
+    const savedTheme = localStorage.getItem('aurix-theme')
     if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme)
-    const savedWatch = localStorage.getItem('pioswap-watchlist')
+    const savedWatch = localStorage.getItem('aurix-watchlist')
     if (savedWatch) { try { setWatchlist(JSON.parse(savedWatch)) } catch { /* ignore invalid local preference */ } }
   }, [])
   useEffect(() => {
@@ -156,8 +157,8 @@ function App() {
     const interval = window.setInterval(loadMarkets, 120000)
     return () => { cancelled = true; window.clearInterval(interval) }
   }, [])
-  useEffect(() => { localStorage.setItem('pioswap-theme', theme) }, [theme])
-  useEffect(() => { localStorage.setItem('pioswap-watchlist', JSON.stringify(watchlist)) }, [watchlist])
+  useEffect(() => { localStorage.setItem('aurix-theme', theme) }, [theme])
+  useEffect(() => { localStorage.setItem('aurix-watchlist', JSON.stringify(watchlist)) }, [watchlist])
   useEffect(() => {
     if (!toast) return
     const id = window.setTimeout(() => setToast(''), 3400)
@@ -216,7 +217,7 @@ function App() {
           <div className="nav-label">{group}</div>
           {pages.filter(p=>p.group===group).map(item => <button key={item.name} className={`nav-item ${page===item.name?'active':''}`} onClick={()=>navTo(item.name)}><item.icon size={17} strokeWidth={1.7}/><span>{item.name}</span>{item.name==='Security Center' && <span className="nav-count">!</span>}</button>)}
         </div>)}
-        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={17}/></div><strong>Need a hand?</strong><p>Explore guides to trading safely.</p><button onClick={()=>notify('Help center is not connected yet.')}>Visit help center <ArrowRight size={13}/></button></div><div className="version">PIOSWAP PREVIEW <span>·</span> 0.1.0</div></div>
+        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={17}/></div><strong>Need a hand?</strong><p>Explore guides to trading safely.</p><button onClick={()=>notify('Help center is not connected yet.')}>Visit help center <ArrowRight size={13}/></button></div><div className="version">AURIX PREVIEW <span>·</span> 0.1.0</div></div>
       </aside>
 
       <main className="main">
@@ -232,6 +233,7 @@ function App() {
         {page === 'Token Explorer' && <TokenExplorer assets={filteredAssets} query={query} setQuery={setQuery} />}
         {page === 'Analytics' && <Analytics/>}
         {page === 'Security Center' && <SecurityCenter/>}
+        {page === 'Referral Program' && <ReferralProgram wallet={wallet} notify={notify}/>}
         {page === 'Settings' && <SettingsPage theme={theme} setTheme={setTheme} settings={settings} setSettings={setSettings} notify={notify}/>}
       </main>
     </div>
@@ -243,10 +245,10 @@ function App() {
     {toast && <div className="toast"><Check size={16}/>{toast}<button onClick={()=>setToast('')}><X size={14}/></button></div>}
     {modal !== 'none' && <div className="modal-backdrop" onClick={()=>setModal('none')}><div className="modal" onClick={e=>e.stopPropagation()}>
       <button className="modal-close icon-button" onClick={()=>setModal('none')}><X size={18}/></button>
-      {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. PioSwap will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Connection only. Trading is not enabled in this preview.</div></> :
+      {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. Aurix will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Connection only. Trading is not enabled in this preview.</div></> :
       <><div className="modal-symbol"><ShieldCheck size={24}/></div><h2>Execution not configured</h2><p>This preview does not have a verified PIO contract, swap provider, chain configuration, or transaction preflight. No transaction will be submitted.</p><button className="primary-button full" onClick={()=>setModal('none')}>Got it <Check size={16}/></button></>}
     </div></div>}
-    <footer className="footer"><span>© 2026 PioSwap</span><span>Market data by CoinGecko · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview build · trading disabled</span></footer>
+    <footer className="footer"><span>© 2026 Aurix</span><span>Market data by CoinGecko · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview build · trading disabled</span></footer>
   </div>
 }
 
@@ -290,25 +292,44 @@ function Swap({assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount
   const [advanced,setAdvanced] = useState(false)
   const [slippage,setSlippage] = useState('0.50')
   const [assetSelect,setAssetSelect] = useState<'from'|'to'|null>(null)
-  const from=assets.find(a=>a.symbol===fromAsset) ?? seedAssets[0], to=assets.find(a=>a.symbol===toAsset) ?? seedAssets[10]
-  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / SWAP" title="Swap, with clarity." description="Understand the route and the cost before you sign."/>
-    <div className="swap-layout"><div className="swap-main panel">
-      <div className="swap-card-head"><div className="eyebrow">YOU PAY</div><span className="muted-text">Balance unavailable</span></div>
-      <div className="amount-row"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00" inputMode="decimal" aria-label="Amount to pay"/><button className="token-select" onClick={()=>setAssetSelect('from')}><AssetIcon asset={from} size="sm"/>{from.symbol}<ChevronDown size={15}/></button></div>
-      <div className="amount-foot"><span>≈ USD value unavailable</span><button onClick={()=>notify(wallet?'Balance provider not configured.':'Connect a wallet to inspect balance.')}>MAX</button></div>
-      <div className="swap-direction"><button className="round-icon" onClick={()=>{setFromAsset(toAsset);setToAsset(fromAsset)}} aria-label="Reverse assets"><ArrowDownUp size={17}/></button></div>
-      <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE</div><span className="muted-text">Estimated amount</span></div>
-      <div className="amount-row"><div className="output-amount">—</div><button className="token-select" onClick={()=>setAssetSelect('to')}><AssetIcon asset={to} size="sm"/>{to.symbol}<ChevronDown size={15}/></button></div>
-      <div className="amount-foot"><span>Rate unavailable until provider is configured</span></div>
-      {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select token</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div>{assets.map(a=><button key={a.symbol} className="picker-row" onClick={()=>{assetSelect==='from'?setFromAsset(a.symbol):setToAsset(a.symbol);setAssetSelect(null)}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}{a.symbol==='PIO'?' · Unverified':''}</small></span><ArrowRight size={15}/></button>)}</div>}
-      <div className="quote-summary"><div><span>Route</span><strong>Not available</strong></div><div><span>Network fee</span><strong>—</strong></div><div><span>Price impact</span><strong>—</strong></div><div><span>Quote expires</span><strong>—</strong></div></div>
+  const [fromChain,setFromChain] = useState('Ethereum')
+  const [toChain,setToChain] = useState('Ethereum')
+  const [tokenQuery,setTokenQuery] = useState('')
+  const chains = ['Ethereum','Arbitrum','Base','Optimism','Polygon','BNB Chain','Avalanche','Solana']
+  const chainTokens: Record<string,string[]> = {
+    'Ethereum':['ETH','USDC','USDT','WBTC','LINK','UNI'], 'Arbitrum':['ETH','USDC','USDT','ARB','LINK'],
+    'Base':['ETH','USDC','AERO'], 'Optimism':['ETH','USDC','OP'], 'Polygon':['POL','USDC','USDT','LINK'],
+    'BNB Chain':['BNB','USDT','CAKE'], 'Avalanche':['AVAX','USDC','USDT','LINK'], 'Solana':['SOL','USDC','USDT','JUP']
+  }
+  const tokenList = assets.filter(a => chainTokens[(assetSelect==='from'?fromChain:toChain)]?.includes(a.symbol) && `${a.name} ${a.symbol}`.toLowerCase().includes(tokenQuery.toLowerCase()))
+  const from=assets.find(a=>a.symbol===fromAsset) ?? seedAssets[0], to=assets.find(a=>a.symbol===toAsset) ?? seedAssets[1]
+  const sameChain = fromChain === toChain
+  const supportedToken = (chain:string,symbol:string) => Boolean(chainTokens[chain]?.includes(symbol))
+  const chooseChain = (side:'from'|'to', chain:string) => {
+    if(side==='from'){setFromChain(chain); if(!supportedToken(chain,fromAsset)) setFromAsset((chainTokens[chain]||['ETH'])[0])}
+    else {setToChain(chain); if(!supportedToken(chain,toAsset)) setToAsset((chainTokens[chain]||['ETH'])[0])}
+  }
+  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / SWAP" title="Swap, with clarity." description="Choose a network first, then choose a token available on that network. No invented quotes or routes."/>
+    <div className="swap-layout"><div className="swap-main panel swap-luxury-card">
+      <div className="chain-pair-selectors"><label><span>PAY ON</span><select value={fromChain} onChange={e=>chooseChain('from',e.target.value)}>{chains.map(c=><option key={c}>{c}</option>)}</select></label><label><span>RECEIVE ON</span><select value={toChain} onChange={e=>chooseChain('to',e.target.value)}>{chains.map(c=><option key={c}>{c}</option>)}</select></label></div>
+      <div className="swap-card-head"><div className="eyebrow">YOU PAY · {fromChain.toUpperCase()}</div><span className="muted-text">Wallet balance not indexed</span></div>
+      <div className="amount-row"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00" inputMode="decimal" aria-label="Amount to pay"/><button className="token-select" onClick={()=>{setAssetSelect('from');setTokenQuery('')}}><AssetIcon asset={from} size="sm"/>{from.symbol}<ChevronDown size={15}/></button></div>
+      <div className="amount-foot"><span>USD estimate requires a verified quote</span><button onClick={()=>notify(wallet?'Wallet balance lookup is not integrated yet.':'Connect a wallet to inspect balance.')}>MAX</button></div>
+      <div className="swap-direction"><button className="round-icon" onClick={()=>{setFromAsset(toAsset);setToAsset(fromAsset);setFromChain(toChain);setToChain(fromChain)}} aria-label="Reverse assets and networks"><ArrowDownUp size={17}/></button></div>
+      <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE · {toChain.toUpperCase()}</div><span className="muted-text">No live quote</span></div>
+      <div className="amount-row"><div className="output-amount">—</div><button className="token-select" onClick={()=>{setAssetSelect('to');setTokenQuery('')}}><AssetIcon asset={to} size="sm"/>{to.symbol}<ChevronDown size={15}/></button></div>
+      <div className="amount-foot"><span>Output appears only after a provider returns a quote</span></div>
+      {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'pay':'receive'} token · {assetSelect==='from'?fromChain:toChain}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search available tokens"/>{tokenList.length?tokenList.map(a=><button key={`${assetSelect}-${a.symbol}`} className="picker-row" onClick={()=>{assetSelect==='from'?setFromAsset(a.symbol):setToAsset(a.symbol);setAssetSelect(null)}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No verified token list for this network yet.</div>}</div>}
+      <div className="quote-summary"><div><span>Route</span><strong>{sameChain?'Same-chain route':'Cross-chain route required'}</strong></div><div><span>Network fee</span><strong>Unavailable</strong></div><div><span>Price impact</span><strong>Unavailable</strong></div><div><span>Quote status</span><strong>Provider not connected</strong></div></div>
+      {!sameChain&&<div className="inline-warning"><ShieldCheck size={15}/> You selected different networks. Use Cross-Chain to check bridge availability; no bridge quote is currently available.</div>}
       <button className="disclosure-row" onClick={()=>setAdvanced(!advanced)}><span><Settings2 size={15}/> Advanced settings</span><ChevronDown size={15} className={advanced?'rotated':''}/></button>
-      {advanced&&<div className="advanced-settings"><label>Slippage tolerance</label><div className="slippage-options">{['0.10','0.50','1.00'].map(s=><button key={s} className={slippage===s?'selected':''} onClick={()=>setSlippage(s)}>{s}%</button>)}</div><p>Settings are saved for this session. Recommended slippage will be provider-dependent once routing is configured.</p></div>}
-      <button className="primary-button full swap-cta" onClick={onPreview}>{wallet?'Review transaction':'Connect wallet to continue'} <ArrowRight size={16}/></button>
-      <div className="safe-note"><ShieldCheck size={15}/> No transaction is submitted in this preview.</div>
-    </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Preflight, every time.</strong></div><p>Before execution is enabled, PioSwap will validate the quote, token identities, network, approvals, costs, and transaction target.</p><ul><li><Check size={14}/> Token and chain checks</li><li><Check size={14}/> Itemized fees</li><li><Check size={14}/> Quote freshness</li><li><Check size={14}/> Wallet confirmation</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO token details have not been supplied. The token is not yet configured for trading.</p><span className="pill warning">Not tradable yet</span></div></aside></div>
+      {advanced&&<div className="advanced-settings"><label>Slippage tolerance</label><div className="slippage-options">{['0.10','0.50','1.00'].map(s=><button key={s} className={slippage===s?'selected':''} onClick={()=>setSlippage(s)}>{s}%</button>)}</div><p>Preference only. Execution remains disabled until a provider supplies a validated quote and transaction data.</p></div>}
+      <button className="primary-button full swap-cta" onClick={()=>{if(!wallet){onConnect();return} if(!amount||Number(amount)<=0){notify('Enter an amount greater than zero.');return} if(fromAsset===toAsset&&fromChain===toChain){notify('Choose different assets to swap.');return} notify('No live route provider is connected. Nothing was submitted.')}}>{wallet?'Check live route':'Connect wallet to continue'} <ArrowRight size={16}/></button>
+      <div className="safe-note"><ShieldCheck size={15}/> No transaction is submitted without a verified provider quote.</div>
+    </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Before a swap can execute</strong></div><p>A live router must return a quote and transaction payload. Aurix will validate chain, token addresses, recipient, approvals, fees and quote expiry before wallet handoff.</p><ul><li><Check size={14}/> Network and token selection</li><li><Check size={14}/> Itemized fees</li><li><Check size={14}/> Quote freshness</li><li><Check size={14}/> Wallet confirmation</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO token details have not been supplied. It is intentionally excluded from selectable trade assets.</p><span className="pill warning">Not tradable yet</span></div></aside></div>
   </div>
 }
+
 function Markets({query,setQuery,assets:rows,watchlist,toggleWatch,marketStatus,marketUpdated,onSelect}:{query:string;setQuery:(s:string)=>void;assets:Asset[];watchlist:string[];toggleWatch:(s:string)=>void;marketStatus:'loading'|'live'|'error';marketUpdated:string;onSelect:()=>void}) {
   const [tab,setTab]=useState('All assets')
   const filtered=rows.filter(a=>tab==='Watchlist'?watchlist.includes(a.symbol):true)
@@ -323,11 +344,27 @@ function CrossChain({notify,wallet,onConnect}:{notify:(s:string)=>void;wallet:st
   const [from,setFrom]=useState('Ethereum');const [to,setTo]=useState('Solana');const [asset,setAsset]=useState('USDC');const [amount,setAmount]=useState('')
   return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / CROSS-CHAIN" title="One flow. Two chains." description="Compare a source and destination before committing to a route."/><div className="panel bridge-panel"><div className="chain-label">FROM NETWORK</div><div className="chain-select"><span className="chain-icon eth"><img src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/info/logo.png" alt="Ethereum logo"/></span><select value={from} onChange={e=>setFrom(e.target.value)}><option>Ethereum</option><option>Arbitrum</option><option>Base</option><option>Polygon</option></select><ChevronDown size={15}/></div><label>Token and amount</label><div className="amount-row bridge-amount"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00"/><select value={asset} onChange={e=>setAsset(e.target.value)}><option>USDC</option><option>ETH</option><option>USDT</option></select></div><div className="bridge-switch"><button className="round-icon" onClick={()=>{setFrom(to);setTo(from)}}><ArrowDownUp size={16}/></button></div><div className="chain-label">TO NETWORK</div><div className="chain-select"><span className="chain-icon sol"><img src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png" alt="Solana logo"/></span><select value={to} onChange={e=>setTo(e.target.value)}><option>Solana</option><option>Ethereum</option><option>Arbitrum</option><option>Base</option><option>Polygon</option></select><ChevronDown size={15}/></div><div className="bridge-disclosure"><div><span>Route provider</span><strong>Not configured</strong></div><div><span>Estimated receive</span><strong>—</strong></div><div><span>Network and provider fees</span><strong>—</strong></div><div><span>Destination confirmation</span><strong>Unavailable</strong></div></div><button className="primary-button full" onClick={()=>{if(from===to)notify('Choose two different networks.');else if(!wallet)onConnect();else notify('Cross-chain execution is disabled until a supported provider and token configuration are verified.')}}>{wallet?'Check route availability':'Connect wallet'} <ArrowRight size={16}/></button><div className="safe-note"><ShieldCheck size={15}/> No bridge route or completion time is being promised.</div></div></div>
 }
+function ReferralProgram({wallet,notify}:{wallet:string;notify:(s:string)=>void}) {
+  const [address,setAddress]=useState('')
+  const [fee,setFee]=useState('100')
+  const [copied,setCopied]=useState(false)
+  const splits=[{label:'Platform treasury',pct:50,detail:'Protocol operations, security and development'},{label:'Liquidity provider',pct:30,detail:'Liquidity provider reward allocation'},{label:'Direct LP referrer · L1',pct:10,detail:'Wallet that referred the liquidity provider'},{label:'Level 2',pct:5,detail:'Upstream referrer in the LP referral tree'},{label:'Level 3',pct:3,detail:'Third referral level'},{label:'Level 4',pct:2,detail:'Fourth referral level'}]
+  const total=Number(fee)||0
+  const fmt=(n:number)=>n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:4})
+  const link=wallet?`${window.location.origin}/?lp-ref=${wallet}`:''
+  return <div className="page-content"><PageHeader eyebrow="GROW / LIQUIDITY REFERRALS" title="Grow liquidity. Share the upside." description="A transparent proposed fee allocation for liquidity providers and the people who bring them in." right={<span className="pill warning">Design preview · not on-chain</span>}/>
+    <div className="referral-hero panel"><div className="referral-glow"/><div className="eyebrow">LIQUIDITY PROVIDER REFERRAL PROGRAM</div><h2>100% of the fee,<br/><em>accounted for.</em></h2><p>Every fee share is visible before implementation. This page models the proposed distribution; no rewards are currently paid or tracked on-chain.</p><div className="referral-actions"><button className="primary-button" onClick={()=>wallet?notify('Referral tracking is not deployed yet. This is a preview link only.'):notify('Connect your wallet to preview your referral link.')}>{wallet?'Preview my referral link':'Connect wallet'} <ArrowRight size={15}/></button><span className="safe-note"><ShieldCheck size={14}/> No referral earnings are claimed</span></div></div>
+    <div className="referral-grid"><div className="panel referral-split-panel"><div className="panel-top"><div><div className="eyebrow">PROPOSED FEE SPLIT</div><h3>Where each fee goes</h3></div><span className="pill neutral">100% total</span></div>{splits.map((s,i)=><div className="split-row" key={s.label}><div className="split-rank">{String(i+1).padStart(2,'0')}</div><div className="split-copy"><strong>{s.label}</strong><span>{s.detail}</span><div className="split-bar"><span style={{width:`${s.pct*2}%`}}/></div></div><strong className="split-pct">{s.pct}%</strong></div>)}<div className="fee-note"><ShieldCheck size={15}/> The split totals 100% of the defined fee pool. Smart-contract accounting, rounding rules, eligibility, and payout gas costs must be specified before deployment.</div></div>
+    <div className="referral-side"><div className="panel referral-calculator"><div className="eyebrow">FEE DISTRIBUTION CALCULATOR</div><h3>See a sample fee</h3><label>Example total fee (USD)</label><input className="text-input" value={fee} onChange={e=>setFee(e.target.value.replace(/[^0-9.]/g,''))} inputMode="decimal"/><div className="calculator-list">{splits.map(s=><div key={s.label}><span>{s.label}</span><strong>{fmt(total*s.pct/100)}</strong></div>)}</div><div className="calculator-total"><span>Total allocated</span><strong>{fmt(splits.reduce((sum,s)=>sum+total*s.pct/100,0))}</strong></div></div><div className="panel referral-link-card"><div className="eyebrow">YOUR REFERRAL LINK</div><h3>Bring quality liquidity.</h3><p>{wallet?'A preview link is generated from your connected public wallet address.':'Connect a wallet to preview a referral link.'}</p><div className="referral-link-field">{link||'Connect wallet to generate link'}</div><button className="secondary-button full" disabled={!link} onClick={()=>{void navigator.clipboard?.writeText(link);setCopied(true);notify('Preview referral link copied. Tracking is not active yet.')}}><Copy size={15}/>{copied?'Copied':'Copy preview link'}</button><small>Referral attribution, anti-sybil rules and payouts require backend and contract implementation.</small></div></div></div>
+    <div className="panel referral-rules"><h3>Rules that must be locked before launch</h3><div className="explainer-grid"><div><strong>Eligible fees</strong><p>Define whether the fee pool is protocol fees only or also includes LP and network costs. Network gas should not be silently shared.</p></div><div><strong>Referral tree</strong><p>Use immutable or governed referral binding, with self-referral prevention and explicit handling of missing levels.</p></div><div><strong>Accounting & claims</strong><p>Track accrued amounts on-chain or in auditable backend records. Never display simulated rewards as withdrawable balances.</p></div></div></div>
+  </div>
+}
+
 function Portfolio({privacy,setPrivacy,wallet,onConnect}:{privacy:boolean;setPrivacy:(b:boolean)=>void;wallet:string;onConnect:()=>void}) {
   return <div className="page-content"><PageHeader eyebrow="MANAGE / PORTFOLIO" title="Your assets, in context." description="Real balances and valuations will populate after wallet and data integrations are configured." right={<button className="icon-button" onClick={()=>setPrivacy(!privacy)}>{privacy?<Eye size={17}/>:<EyeOff size={17}/>}</button>}/><div className="portfolio-overview-grid"><div className="panel portfolio-large"><span className="muted-label">TOTAL VERIFIED VALUE</span><div className="portfolio-value">{privacy?'••••••':'— — —'}</div><div className="portfolio-sub">{wallet?'Wallet connected · price provider unavailable':'No wallet connected'}</div><div className="allocation-empty"><div className="empty-ring"/><span>Allocation unavailable until real holdings are indexed.</span></div>{!wallet&&<button className="primary-button" onClick={onConnect}>Connect wallet <ArrowRight size={15}/></button>}</div><div className="panel portfolio-large"><div className="panel-top"><h3>Network exposure</h3><Globe2 size={17}/></div><div className="empty-state"><div className="empty-icon"><Grid2X2 size={22}/></div><strong>No network data yet</strong><p>Holdings and allocation will be calculated from verified wallet data.</p></div></div></div><div className="panel market-panel"><div className="section-in-panel"><h3>Token holdings</h3><span className="pill neutral">Waiting for indexer</span></div><div className="empty-state compact"><Wallet size={24}/><strong>Your holdings will appear here</strong><p>No balances are invented or assumed to be zero.</p></div></div></div>
 }
 function ActivityPage({wallet}:{wallet:string}) {
-  return <div className="page-content"><PageHeader eyebrow="MANAGE / ACTIVITY" title="Every step, visible." description="A single view of supported on-chain activity, with statuses backed by verified transaction data."/><div className="activity-filters">{['All','Swaps','Cross-chain','Approvals'].map((t,i)=><button key={t} className={i===0?'selected':''}>{t}</button>)}</div><div className="panel empty-state large"><div className="empty-icon"><Activity size={24}/></div><strong>{wallet?'No indexed activity yet':'Connect a wallet to begin'}</strong><p>{wallet?'An activity indexer is not configured, so no transaction history can be shown.':'PioSwap will only display transactions that can be verified from supported chain data.'}</p></div></div>
+  return <div className="page-content"><PageHeader eyebrow="MANAGE / ACTIVITY" title="Every step, visible." description="A single view of supported on-chain activity, with statuses backed by verified transaction data."/><div className="activity-filters">{['All','Swaps','Cross-chain','Approvals'].map((t,i)=><button key={t} className={i===0?'selected':''}>{t}</button>)}</div><div className="panel empty-state large"><div className="empty-icon"><Activity size={24}/></div><strong>{wallet?'No indexed activity yet':'Connect a wallet to begin'}</strong><p>{wallet?'An activity indexer is not configured, so no transaction history can be shown.':'Aurix will only display transactions that can be verified from supported chain data.'}</p></div></div>
 }
 function TokenExplorer({assets:rows,query,setQuery}:{assets:Asset[];query:string;setQuery:(s:string)=>void}) {
   return <div className="page-content"><PageHeader eyebrow="DISCOVER / TOKEN EXPLORER" title="Look closer." description="Search assets and distinguish token identity from liquidity and risk."/><div className="search-field explorer-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Token name, symbol, or contract address"/></div><div className="panel market-panel"><AssetTable rows={rows} watchlist={[]} toggleWatch={()=>{}} onSelect={()=>{}}/><div className="data-note"><ShieldCheck size={15}/> PIO identity and contract details are not yet configured. Verification is not a guarantee of safety.</div></div><div className="panel explainer"><h3>What verification means</h3><div className="explainer-grid"><div><strong>Identity</strong><p>Network, contract address, decimals, and authoritative references.</p></div><div><strong>Market quality</strong><p>Liquidity and pricing quality when reliable data is available.</p></div><div><strong>Risk signals</strong><p>Independent warnings where supported, without a universal safety guarantee.</p></div></div></div></div>
@@ -340,7 +377,7 @@ function SecurityCenter() {
   return <div className="page-content"><PageHeader eyebrow="DISCOVER / SECURITY" title="Know before you sign." description="Security controls must reflect actual checks, not a decorative safety score."/><div className="security-banner"><div className="security-banner-icon"><ShieldCheck size={24}/></div><div><strong>Trading is disabled in this preview.</strong><p>No claim of production security or audit status is made.</p></div><span className="pill warning">Preview</span></div><div className="panel checks-panel">{checks.map(([t,d])=><div className="check-row" key={t}><div className="check-row-icon"><FileCheck2 size={17}/></div><div><strong>{t}</strong><span>{d}</span></div><span className="pill neutral">Pending</span></div>)}</div><div className="panel explainer"><h3>Before launch</h3><p>Enable execution only after token and network verification, quote validation, transaction-target checks, simulation where supported, independent security review, and critical-path tests are complete.</p></div></div>
 }
 function SettingsPage({theme,setTheme,settings,setSettings,notify}:{theme:'dark'|'light';setTheme:(t:'dark'|'light')=>void;settings:{alerts:boolean;slippage:string;compact:boolean};setSettings:(s:{alerts:boolean;slippage:string;compact:boolean})=>void;notify:(s:string)=>void}) {
-  return <div className="page-content"><PageHeader eyebrow="PREFERENCES" title="Make it yours." description="Preferences stay on this device in this version."/><div className="settings-layout"><div className="panel settings-panel"><h3>Appearance</h3><p>Choose the surface that feels right.</p><div className="theme-choices"><button className={theme==='dark'?'selected':''} onClick={()=>setTheme('dark')}><span className="theme-swatch dark-swatch"/>Dark graphite {theme==='dark'&&<Check size={15}/>}</button><button className={theme==='light'?'selected':''} onClick={()=>setTheme('light')}><span className="theme-swatch light-swatch"/>Warm ivory {theme==='light'&&<Check size={15}/>}</button></div><div className="setting-row"><div><strong>Compact data tables</strong><span>Reduce vertical spacing in dense market views.</span></div><button className={`switch ${settings.compact?'on':''}`} onClick={()=>setSettings({...settings,compact:!settings.compact})} aria-label="Toggle compact tables"><span/></button></div><div className="setting-row"><div><strong>Asset alerts</strong><span>Opt in to alerts when a notification service is available.</span></div><button className={`switch ${settings.alerts?'on':''}`} onClick={()=>setSettings({...settings,alerts:!settings.alerts})} aria-label="Toggle asset alerts"><span/></button></div><div className="setting-row"><div><strong>Default slippage</strong><span>Applied only as a preference; execution is not enabled.</span></div><select className="small-select" value={settings.slippage} onChange={e=>setSettings({...settings,slippage:e.target.value})}><option value="0.10">0.10%</option><option value="0.50">0.50%</option><option value="1.00">1.00%</option></select></div><button className="secondary-button" onClick={()=>notify('Preferences are saved locally in this browser.')}>Save preferences <Check size={15}/></button></div><div className="panel settings-panel"><h3>Privacy & wallet</h3><p>Connection does not grant custody or authorize transactions.</p><div className="setting-row"><div><strong>Local-first preferences</strong><span>No account or cloud sync is configured.</span></div><span className="pill neutral">On device</span></div><div className="setting-row"><div><strong>Seed phrase storage</strong><span>PioSwap never requests or stores recovery phrases.</span></div><ShieldCheck size={19}/></div><div className="setting-row"><div><strong>Network preferences</strong><span>Network support will be enabled after validation.</span></div><span className="pill neutral">Pending</span></div></div></div></div>
+  return <div className="page-content"><PageHeader eyebrow="PREFERENCES" title="Make it yours." description="Preferences stay on this device in this version."/><div className="settings-layout"><div className="panel settings-panel"><h3>Appearance</h3><p>Choose the surface that feels right.</p><div className="theme-choices"><button className={theme==='dark'?'selected':''} onClick={()=>setTheme('dark')}><span className="theme-swatch dark-swatch"/>Dark graphite {theme==='dark'&&<Check size={15}/>}</button><button className={theme==='light'?'selected':''} onClick={()=>setTheme('light')}><span className="theme-swatch light-swatch"/>Warm ivory {theme==='light'&&<Check size={15}/>}</button></div><div className="setting-row"><div><strong>Compact data tables</strong><span>Reduce vertical spacing in dense market views.</span></div><button className={`switch ${settings.compact?'on':''}`} onClick={()=>setSettings({...settings,compact:!settings.compact})} aria-label="Toggle compact tables"><span/></button></div><div className="setting-row"><div><strong>Asset alerts</strong><span>Opt in to alerts when a notification service is available.</span></div><button className={`switch ${settings.alerts?'on':''}`} onClick={()=>setSettings({...settings,alerts:!settings.alerts})} aria-label="Toggle asset alerts"><span/></button></div><div className="setting-row"><div><strong>Default slippage</strong><span>Applied only as a preference; execution is not enabled.</span></div><select className="small-select" value={settings.slippage} onChange={e=>setSettings({...settings,slippage:e.target.value})}><option value="0.10">0.10%</option><option value="0.50">0.50%</option><option value="1.00">1.00%</option></select></div><button className="secondary-button" onClick={()=>notify('Preferences are saved locally in this browser.')}>Save preferences <Check size={15}/></button></div><div className="panel settings-panel"><h3>Privacy & wallet</h3><p>Connection does not grant custody or authorize transactions.</p><div className="setting-row"><div><strong>Local-first preferences</strong><span>No account or cloud sync is configured.</span></div><span className="pill neutral">On device</span></div><div className="setting-row"><div><strong>Seed phrase storage</strong><span>Aurix never requests or stores recovery phrases.</span></div><ShieldCheck size={19}/></div><div className="setting-row"><div><strong>Network preferences</strong><span>Network support will be enabled after validation.</span></div><span className="pill neutral">Pending</span></div></div></div></div>
 }
 function Unavailable({title,eyebrow,description}:{title:string;eyebrow:string;description:string}) {
   return <div className="page-content"><PageHeader eyebrow={eyebrow} title={title} description={description}/><div className="panel empty-state large"><div className="empty-icon"><LockKeyhole size={23}/></div><strong>Not enabled in this build</strong><p>This area is designed into the product, but the underlying service is not connected. It will not show simulated activity as real.</p><span className="pill neutral">Integration required</span></div></div>

@@ -1,4 +1,4 @@
-# PioSwap production readiness gate
+# Aurix production readiness gate
 
 ## Current state
 
@@ -23,3 +23,11 @@ This repository is a responsive frontend preview. It is **not safe to deploy as 
 ## Release rule
 
 Do not enable real transaction submission until all relevant checks above are implemented and tested for each supported chain/provider. A green frontend build alone does not establish exchange safety.
+
+
+## Referral program release gate
+
+- [ ] Specify the exact fee pool; do not allocate percentages of gross swap value or silently include network gas.
+- [ ] Define missing referral levels, wallet binding, self-referrals, sybil resistance, eligibility, rounding and payout thresholds.
+- [ ] Add auditable accounting, payout/recovery behavior, monitoring and dispute handling.
+- [ ] Review and test referral contracts independently before any real fee distribution.
