@@ -38,7 +38,7 @@ Market information and token imagery are fetched from CoinGecko's public API. AP
 
 ## Latest UI update
 
-- Brand updated to Aurix in the visible interface.
+- Brand updated to PioSwap in the visible interface.
 - Added a Liquidity Provider Referral Program page with the proposed 50/30/10/5/3/2 fee-share model and an interactive fee calculator. This is a UI model only; no fees are collected or paid.
 - Swap now requires selecting a source and destination network separately, then shows tokens filtered by the selected network. The token list is an illustrative UI allowlist, not a verified contract/token registry.
 - Increased the density, thickness and metallic contrast of the gold particle ribbon, and refined responsive styling.

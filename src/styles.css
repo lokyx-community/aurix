@@ -34,7 +34,7 @@ body{margin:0;background:var(--bg);color:var(--text)}button,input,select{font:in
 @media(max-width:760px){.market-cap-col{display:none}}
 
 
-/* Aurix luxury pass: richer metallic gold, thicker ribbon, responsive consistency */
+/* PioSwap luxury pass: richer metallic gold, thicker ribbon, responsive consistency */
 :root{--gold:#d8ad48;--gold-strong:#edca72;--gold-dim:#92712d}
 .hero{isolation:isolate;overflow:hidden;position:relative;}
 .particle-ribbon{z-index:0;opacity:.98;filter:drop-shadow(0 0 8px rgba(224,178,65,.24));}
@@ -76,3 +76,82 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 
 /* Mobile usability pass: referral is directly reachable and menu control has a reliable touch target. */
 @media(max-width:760px){.mobile-menu{display:inline-flex!important;width:46px;height:46px;min-width:46px;min-height:46px;border:1px solid var(--border);border-radius:14px;background:var(--panel);align-items:center;justify-content:center;color:var(--text)}.mobile-menu svg{width:22px;height:22px}.mobile-bottom-nav{height:74px;padding:7px 3px max(8px,env(safe-area-inset-bottom));gap:0}.mobile-bottom-nav button{min-width:0;font-size:8px;gap:4px;padding:2px 0}.mobile-bottom-nav button svg{width:18px;height:18px}.mobile-bottom-nav button span{white-space:nowrap;letter-spacing:-.2px}.main{padding-bottom:110px}.swap-layout,.bridge-panel,.swap-main{width:100%;max-width:100%;min-width:0}.bridge-panel{padding:14px}.chain-select{min-width:0}.chain-select select{min-width:0;width:100%}}
+
+/* Native balance panel: compact, legible on mobile and desktop. */
+.native-holdings{display:flex;flex-direction:column;gap:0;width:100%}.native-holding-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid var(--border);font-size:11px}.native-holding-row:last-child{border-bottom:0}.native-holding-row>span,.native-holding-row small{color:var(--muted)}.native-holding-row>div{display:flex;flex-direction:column;gap:4px;min-width:0}.native-holding-row strong{font-variant-numeric:tabular-nums}.native-holding-row small{font-size:9px;line-height:1.4}@media(max-width:760px){.native-holding-row{grid-template-columns:minmax(0,1fr) auto;gap:8px}.native-holding-row>strong:last-child{grid-column:2}.native-holding-row>div{grid-row:span 2}}
+/* Avoid oversized, browser-default select menus where the native control allows styling. */
+.chain-pair-selectors select,.chain-select select,.bridge-amount select,.small-select{appearance:none;-webkit-appearance:none;background-color:var(--panel-2);border:1px solid var(--border);color:var(--text);border-radius:11px;min-height:44px;padding:12px 38px 12px 13px;font:inherit;font-size:12px;box-shadow:inset 0 1px rgba(255,255,255,.025);}
+.chain-pair-selectors label,.chain-select{position:relative}.chain-pair-selectors label:after{content:'⌄';position:absolute;right:13px;bottom:11px;color:var(--muted);pointer-events:none}.chain-select select{background:transparent;position:relative;z-index:1}.chain-select>svg{pointer-events:none;z-index:2}.mobile-menu{min-width:48px;min-height:48px}
+
+/* PioSwap exchange refinement: restrained champagne metal, bespoke selectors, accessible motion */
+:root{--gold:#c8a45d;--gold-strong:#e2c47e;--gold-dim:#80683d;--gold-highlight:#f4e4b7}
+.theme-light{--gold:#a77d2c;--gold-strong:#bd9140;--gold-dim:#d9c79e;--gold-highlight:#76551e}
+.primary-button{background:linear-gradient(112deg,#f1dfad 0%,#d7b565 42%,#b48b3e 100%);border:1px solid rgba(244,225,174,.7);color:#20190d;box-shadow:inset 0 1px 0 rgba(255,255,255,.55),0 5px 16px rgba(174,132,48,.13);background-size:100% 100%;transition:filter .22s ease,transform .22s ease,box-shadow .22s ease}
+.primary-button:hover{filter:brightness(1.045);transform:translateY(-1px);box-shadow:inset 0 1px 0 rgba(255,255,255,.68),0 8px 22px rgba(174,132,48,.2)}
+.theme-light .primary-button{background:linear-gradient(112deg,#f4e5bd,#d7b565 55%,#bb9144);color:#21190c}
+.chain-picker-wrap{position:relative;display:flex;flex-direction:column;gap:7px;min-width:0}
+.chain-picker-label{font-size:9px;letter-spacing:.14em;color:var(--muted);font-weight:750}
+.chain-picker-trigger{width:100%;min-width:0;min-height:60px;display:flex;align-items:center;gap:11px;text-align:left;padding:11px 13px;border:1px solid var(--border);border-radius:13px;background:linear-gradient(145deg,var(--panel-2),var(--panel));color:var(--text);cursor:pointer;transition:border-color .2s ease,background .2s ease,transform .2s ease}
+.chain-picker-trigger:hover,.chain-picker-trigger.is-open{border-color:color-mix(in srgb,var(--gold) 65%,var(--border));background:color-mix(in srgb,var(--panel) 90%,var(--gold) 10%)}
+.chain-picker-trigger>img,.chain-menu-option>img{width:30px;height:30px;object-fit:contain;border-radius:50%;flex-shrink:0;background:var(--panel-2)}
+.chain-picker-current{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}.chain-picker-current strong{font-size:13px;font-weight:650}.chain-picker-current small{font-size:10px;color:var(--muted)}
+.chain-picker-trigger>svg{color:var(--muted);flex-shrink:0}
+.chain-picker-wrap .picker-scrim{position:fixed;inset:0;border:0;background:rgba(5,5,5,.34);backdrop-filter:blur(2px);z-index:80;cursor:default}
+.chain-picker-menu{position:absolute;top:calc(100% + 8px);left:0;right:0;min-width:min(320px,calc(100vw - 32px));z-index:81;padding:10px;border:1px solid color-mix(in srgb,var(--gold) 28%,var(--border));border-radius:17px;background:color-mix(in srgb,var(--panel) 94%,#17130b);box-shadow:0 22px 70px rgba(0,0,0,.38),inset 0 1px rgba(255,255,255,.035);animation:chainMenuIn .18s ease-out;transform-origin:top center}
+.chain-menu-title{display:flex;align-items:center;justify-content:space-between;padding:4px 5px 10px;font-size:12px;font-weight:700;letter-spacing:.02em}
+.chain-menu-search{height:42px;display:flex;align-items:center;gap:9px;padding:0 11px;border:1px solid var(--border);border-radius:10px;background:var(--panel-2);color:var(--muted)}
+.chain-menu-search input{width:100%;min-width:0;border:0;outline:0;background:transparent;color:var(--text);font:inherit;font-size:12px}
+.chain-menu-list{max-height:min(320px,48vh);overflow:auto;padding-top:7px;overscroll-behavior:contain}
+.chain-menu-option{width:100%;display:flex;align-items:center;gap:11px;padding:11px 9px;border:0;border-radius:10px;background:transparent;color:var(--text);text-align:left;cursor:pointer;transition:background .16s ease}
+.chain-menu-option:hover,.chain-menu-option.selected{background:color-mix(in srgb,var(--gold) 10%,transparent)}
+.chain-menu-option>span{display:flex;flex-direction:column;gap:3px;flex:1;min-width:0}.chain-menu-option strong{font-size:12px;font-weight:650}.chain-menu-option small{font-size:10px;color:var(--muted)}.chain-menu-option>svg{color:var(--gold-strong)}.chain-menu-option em{font-size:9px;letter-spacing:.04em;font-style:normal;color:var(--muted);border:1px solid var(--border);padding:5px 7px;border-radius:99px;white-space:nowrap}.chain-menu-option.coming-soon{opacity:.58;cursor:not-allowed}
+@keyframes chainMenuIn{from{opacity:0;transform:translateY(-5px) scale(.99)}to{opacity:1;transform:translateY(0) scale(1)}}
+.asset-picker{border:1px solid color-mix(in srgb,var(--gold) 35%,var(--border));border-radius:16px;background:var(--panel);box-shadow:0 18px 55px rgba(0,0,0,.28)}
+.picker-row{min-height:58px;border-radius:9px}.picker-row:hover{background:color-mix(in srgb,var(--gold) 8%,var(--panel-2))}
+.token-select{border:1px solid var(--border);border-radius:13px;background:linear-gradient(145deg,var(--panel-2),var(--panel));min-height:54px;padding:8px 12px;gap:9px;transition:border-color .2s ease,background .2s ease}.token-select:hover{border-color:color-mix(in srgb,var(--gold) 55%,var(--border));background:color-mix(in srgb,var(--panel) 91%,var(--gold) 9%)}
+.asset-icon{overflow:hidden;background:var(--panel-2);border:1px solid color-mix(in srgb,var(--asset-color) 24%,var(--border))}.asset-icon img{object-fit:contain;padding:1px;background:#fff;border-radius:50%}.asset-icon .asset-letter{font-weight:700}
+.swap-card-head{align-items:center;gap:10px}.quote-summary{border-color:color-mix(in srgb,var(--gold) 16%,var(--border));background:color-mix(in srgb,var(--panel-2) 85%,transparent)}
+@media(max-width:760px){.chain-picker-trigger{min-height:56px;padding:9px 10px;gap:8px}.chain-picker-trigger>img{width:27px;height:27px}.chain-picker-current strong{font-size:12px}.chain-picker-current small{font-size:9px}.chain-picker-menu{position:fixed;top:auto;bottom:calc(80px + env(safe-area-inset-bottom));left:14px;right:14px;min-width:0;max-height:68vh;border-radius:20px}.chain-menu-list{max-height:calc(68vh - 105px)}.chain-menu-option{min-height:54px}.chain-pair-selectors{gap:9px}.token-select{min-height:50px;padding:7px 9px}.primary-button{min-height:48px}}
+@media(prefers-reduced-motion:reduce){.chain-picker-menu{animation:none}.chain-picker-trigger,.chain-menu-option,.primary-button,.token-select{transition:none}}
+
+/* PioSwap motion system — tactile, quiet, and deliberately restrained. */
+@keyframes pio-page-enter{from{opacity:0;transform:translateY(9px);filter:blur(2px)}to{opacity:1;transform:translateY(0);filter:blur(0)}}
+@keyframes pio-modal-enter{0%{opacity:0;transform:translateY(14px) scale(.975)}65%{opacity:1;transform:translateY(-2px) scale(1.003)}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes pio-backdrop-enter{from{opacity:0;backdrop-filter:blur(0)}to{opacity:1;backdrop-filter:blur(8px)}}
+@keyframes pio-toast-enter{from{opacity:0;transform:translateY(12px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes pio-gold-sweep{0%{background-position:100% 0}100%{background-position:-100% 0}}
+@keyframes pio-soft-pulse{0%,100%{box-shadow:0 0 0 0 rgba(211,174,93,0)}50%{box-shadow:0 0 0 5px rgba(211,174,93,.09)}}
+.page-content{animation:pio-page-enter .42s cubic-bezier(.2,.75,.25,1) both}
+.panel{transition:border-color .25s ease,box-shadow .3s ease,transform .3s cubic-bezier(.2,.7,.25,1)}
+button{ -webkit-tap-highlight-color:transparent }
+button:not(:disabled){transition-property:background-color,border-color,color,box-shadow,transform,filter;transition-duration:.2s;transition-timing-function:cubic-bezier(.2,.7,.25,1)}
+button:not(:disabled):active{transform:scale(.975)}
+.primary-button{position:relative;isolation:isolate;overflow:hidden;background-size:220% 100%;background-position:0 0;transition:background-position .55s ease,filter .25s ease,transform .25s cubic-bezier(.2,.8,.2,1),box-shadow .3s ease}
+.primary-button::after{content:"";position:absolute;inset:0;z-index:-1;pointer-events:none;background:linear-gradient(105deg,transparent 25%,rgba(255,255,255,.38) 48%,transparent 68%);transform:translateX(-130%);transition:transform .7s cubic-bezier(.2,.7,.25,1)}
+.primary-button:hover::after{transform:translateX(130%)}
+.primary-button:focus-visible,.secondary-button:focus-visible,.icon-button:focus-visible,.token-select:focus-visible,.round-icon:focus-visible{outline:2px solid var(--gold-strong);outline-offset:3px}
+.secondary-button:hover,.token-select:hover,.round-icon:hover{transform:translateY(-1px);border-color:var(--gold-dim);box-shadow:0 5px 18px rgba(20,17,10,.07)}
+.icon-button:hover{transform:translateY(-1px)}
+.swap-direction .round-icon{transition:transform .45s cubic-bezier(.2,.8,.2,1),background-color .25s ease,border-color .25s ease}
+.swap-direction .round-icon:hover{transform:rotate(180deg);background:color-mix(in srgb,var(--gold) 12%,var(--panel-2));border-color:var(--gold-dim)}
+.chain-picker-menu,.asset-picker{transform-origin:top center;animation:pio-modal-enter .24s cubic-bezier(.2,.8,.2,1) both}
+.picker-scrim{animation:pio-backdrop-enter .18s ease both}
+.modal-backdrop{animation:pio-backdrop-enter .2s ease both}
+.modal{animation:pio-modal-enter .38s cubic-bezier(.2,.85,.25,1) both}
+.toast{animation:pio-toast-enter .3s cubic-bezier(.2,.8,.2,1) both}
+.feature-card:hover,.market-panel .asset-row:hover{transform:translateY(-2px)}
+.brand-mark{transition:transform .35s cubic-bezier(.2,.8,.2,1),box-shadow .35s ease}
+.brand-button:hover .brand-mark{transform:rotate(-5deg) translateY(-1px);box-shadow:0 0 0 4px rgba(211,174,93,.08)}
+input,select{transition:border-color .2s ease,box-shadow .2s ease}
+.text-input:focus,.amount-row input:focus,.bridge-amount input:focus{outline:none}
+:where(.text-input,.search-field,.chain-menu-search,.bridge-amount):focus-within{border-color:var(--gold-dim);box-shadow:0 0 0 3px rgba(211,174,93,.08)}
+@media(prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important;transform:none!important}}
+
+/* Provider-backed token catalogue details */
+.token-picker-meta{padding:10px 14px 2px;color:var(--muted,#8b887f);font-size:11px;letter-spacing:.035em}
+.chain-menu-list{max-height:min(56vh,520px);overflow:auto;overscroll-behavior:contain}
+.asset-picker{max-height:min(68vh,650px);overflow:hidden;display:flex;flex-direction:column}
+.asset-picker .token-search-input{flex-shrink:0}
+.asset-picker .picker-row{flex-shrink:0;min-height:58px}
+.picker-row img,.picker-row .asset-icon{flex-shrink:0}
+@media(max-width:640px){.asset-picker{max-height:74dvh}.asset-picker .picker-row{min-height:62px}.chain-menu-list{max-height:58dvh}}

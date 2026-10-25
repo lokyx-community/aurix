@@ -37,6 +37,15 @@ const seedAssets: Asset[] = [
   { symbol: 'ADA', name: 'Cardano', color: '#0033AD', letter: 'A', logo: 'https://coin-images.coingecko.com/coins/images/975/large/cardano.png', id: 'cardano', price: '—', change: '—', positive: true },
   { symbol: 'AVAX', name: 'Avalanche', color: '#E84142', letter: 'A', logo: 'https://coin-images.coingecko.com/coins/images/12559/large/Avalanche_Circle_RedWhite_Trans.png', id: 'avalanche-2', price: '—', change: '—', positive: true },
   { symbol: 'LINK', name: 'Chainlink', color: '#2A5ADA', letter: '⬡', logo: 'https://coin-images.coingecko.com/coins/images/877/large/chainlink-new-logo.png', id: 'chainlink', price: '—', change: '—', positive: true },
+  { symbol: 'USDT', name: 'Tether', color: '#26A17B', letter: '₮', logo: 'https://coin-images.coingecko.com/coins/images/325/large/Tether.png', id: 'tether', price: '—', change: '—', positive: true },
+  { symbol: 'WBTC', name: 'Wrapped Bitcoin', color: '#F09242', letter: '₿', logo: 'https://coin-images.coingecko.com/coins/images/7598/large/wrapped_bitcoin_wbtc.png', id: 'wrapped-bitcoin', price: '—', change: '—', positive: true },
+  { symbol: 'UNI', name: 'Uniswap', color: '#FF007A', letter: '🦄', logo: 'https://coin-images.coingecko.com/coins/images/12504/large/uni.jpg', id: 'uniswap', price: '—', change: '—', positive: true },
+  { symbol: 'ARB', name: 'Arbitrum', color: '#28A0F0', letter: 'A', logo: 'https://coin-images.coingecko.com/coins/images/16547/large/arb.jpg', id: 'arbitrum', price: '—', change: '—', positive: true },
+  { symbol: 'OP', name: 'Optimism', color: '#FF0420', letter: 'O', logo: 'https://coin-images.coingecko.com/coins/images/25244/large/Optimism.png', id: 'optimism', price: '—', change: '—', positive: true },
+  { symbol: 'POL', name: 'POL', color: '#8247E5', letter: 'P', logo: 'https://coin-images.coingecko.com/coins/images/4713/large/polygon.png', id: 'matic-network', price: '—', change: '—', positive: true },
+  { symbol: 'CAKE', name: 'PancakeSwap', color: '#D1884F', letter: '🥞', logo: 'https://coin-images.coingecko.com/coins/images/12632/large/pancakeswap-cake.png', id: 'pancakeswap-token', price: '—', change: '—', positive: true },
+  { symbol: 'AERO', name: 'Aerodrome Finance', color: '#0052FF', letter: 'A', logo: 'https://coin-images.coingecko.com/coins/images/31745/large/token.png', id: 'aerodrome-finance', price: '—', change: '—', positive: true },
+  { symbol: 'JUP', name: 'Jupiter', color: '#C7F284', letter: 'J', logo: 'https://coin-images.coingecko.com/coins/images/34188/large/jup.png', id: 'jupiter-exchange-solana', price: '—', change: '—', positive: true },
   { symbol: 'PIO', name: 'PIO Gold', color: '#D6AD4B', letter: 'P', price: 'Not listed', change: 'Unverified', positive: true },
 ]
 const formatUsd = (n: number) => n >= 1000 ? n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}) : n >= 1 ? n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:4}) : n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:4,maximumFractionDigits:8})
@@ -101,7 +110,10 @@ function ParticleRibbon() {
 }
 
 function Brand() {
-  return <div className="brand"><span className="brand-mark">P<span>·</span></span><span>aur<span className="brand-light">ix</span></span></div>
+  return <div className="brand" aria-label="PioSwap">
+    <span className="brand-mark" aria-hidden="true">P<span>·</span></span>
+    <span className="brand-name">Pio<span className="brand-light">Swap</span></span>
+  </div>
 }
 
 function App() {
@@ -127,11 +139,11 @@ function App() {
   const [modal, setModal] = useState<'connect'|'quote'|'none'>('none')
 
   useEffect(() => {
-    const savedTheme = localStorage.getItem('aurix-theme')
+    const savedTheme = localStorage.getItem('pioswap-theme')
     if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme)
-    const savedWatch = localStorage.getItem('aurix-watchlist')
+    const savedWatch = localStorage.getItem('pioswap-watchlist')
     if (savedWatch) { try { setWatchlist(JSON.parse(savedWatch)) } catch { /* ignore invalid local preference */ } }
-    const savedSettings = localStorage.getItem('aurix-settings')
+    const savedSettings = localStorage.getItem('pioswap-settings')
     if (savedSettings) { try { setSettings({ alerts: true, slippage: '0.50', compact: false, ...JSON.parse(savedSettings) }) } catch { /* ignore invalid local preference */ } }
     const provider = (window as Window & { ethereum?: { request: (args: {method:string}) => Promise<unknown>; on?: (event:string, callback:(value:unknown)=>void)=>void; removeListener?: (event:string, callback:(value:unknown)=>void)=>void } }).ethereum
     if (!provider) return
@@ -158,7 +170,7 @@ function App() {
         const mapped: Asset[] = data.map((coin) => ({ symbol: coin.symbol.toUpperCase(), name: coin.name, color: '#C6A45A', letter: coin.symbol.slice(0,1).toUpperCase(), logo: coin.image, id: coin.id, price: formatUsd(coin.current_price), change: coin.price_change_percentage_24h == null ? '—' : `${coin.price_change_percentage_24h >= 0 ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`, positive: (coin.price_change_percentage_24h ?? 0) >= 0, marketCap: coin.market_cap, volume: coin.total_volume, rank: coin.market_cap_rank }))
         const pio = seedAssets.find(a => a.symbol === 'PIO')!
         const merged = [...mapped]
-        for (const important of seedAssets.filter(a => ['USDC'].includes(a.symbol))) if (!merged.some(a => a.symbol === important.symbol)) merged.push(important)
+        for (const important of seedAssets.filter(a => ['USDC','USDT','WBTC','UNI','ARB','OP','POL','CAKE','AERO','JUP'].includes(a.symbol))) if (!merged.some(a => a.symbol === important.symbol)) merged.push(important)
         merged.push(pio)
         setMarketAssets(merged)
         setMarketUpdated(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}))
@@ -171,9 +183,9 @@ function App() {
     const interval = window.setInterval(loadMarkets, 120000)
     return () => { cancelled = true; window.clearInterval(interval) }
   }, [])
-  useEffect(() => { localStorage.setItem('aurix-theme', theme) }, [theme])
-  useEffect(() => { localStorage.setItem('aurix-watchlist', JSON.stringify(watchlist)) }, [watchlist])
-  useEffect(() => { localStorage.setItem('aurix-settings', JSON.stringify(settings)) }, [settings])
+  useEffect(() => { localStorage.setItem('pioswap-theme', theme) }, [theme])
+  useEffect(() => { localStorage.setItem('pioswap-watchlist', JSON.stringify(watchlist)) }, [watchlist])
+  useEffect(() => { localStorage.setItem('pioswap-settings', JSON.stringify(settings)) }, [settings])
   useEffect(() => {
     if (!toast) return
     const id = window.setTimeout(() => setToast(''), 3400)
@@ -232,7 +244,7 @@ function App() {
           <div className="nav-label">{group}</div>
           {pages.filter(p=>p.group===group).map(item => <button key={item.name} className={`nav-item ${page===item.name?'active':''}`} onClick={()=>navTo(item.name)}><item.icon size={17} strokeWidth={1.7}/><span>{item.name}</span>{item.name==='Security Center' && <span className="nav-count">!</span>}</button>)}
         </div>)}
-        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={17}/></div><strong>Need a hand?</strong><p>Explore guides to trading safely.</p><button onClick={()=>notify('Help center is not connected yet.')}>Visit help center <ArrowRight size={13}/></button></div><div className="version">AURIX PREVIEW <span>·</span> 0.1.0</div></div>
+        <div className="sidebar-bottom"><div className="help-card"><div className="help-icon"><CircleHelp size={17}/></div><strong>Need a hand?</strong><p>Explore guides to trading safely.</p><button onClick={()=>notify('Help center is not connected yet.')}>Visit help center <ArrowRight size={13}/></button></div><div className="version">PIOSWAP PREVIEW <span>·</span> 0.1.0</div></div>
       </aside>
 
       <main className="main">
@@ -242,7 +254,7 @@ function App() {
         {page === 'Advanced Trading' && <AdvancedTrading notify={notify}/>}
         {page === 'Limit Orders' && <Unavailable title="Limit orders" eyebrow="ADVANCED TRADING" description="Limit orders require a real execution or monitoring mechanism. No simulated orders will be shown as active." />}
         {page === 'Cross-Chain' && <CrossChain notify={notify} wallet={wallet} onConnect={()=>setModal('connect')}/>}
-        {page === 'Portfolio' && <Portfolio privacy={privacy} setPrivacy={setPrivacy} wallet={wallet} onConnect={()=>setModal('connect')}/>}
+        {page === 'Portfolio' && <Portfolio privacy={privacy} setPrivacy={setPrivacy} wallet={wallet} assets={marketAssets} onConnect={()=>setModal('connect')}/>}
         {page === 'Earn' && <Unavailable title="Earn, with clarity." eyebrow="EARN" description="Yield products will appear only when a supported protocol, current rate source, fees, lockups, and risk disclosures are configured." />}
         {page === 'Activity' && <ActivityPage wallet={wallet}/>}
         {page === 'Token Explorer' && <TokenExplorer assets={filteredAssets} query={query} setQuery={setQuery} />}
@@ -260,10 +272,10 @@ function App() {
     {toast && <div className="toast"><Check size={16}/>{toast}<button onClick={()=>setToast('')}><X size={14}/></button></div>}
     {modal !== 'none' && <div className="modal-backdrop" onClick={()=>setModal('none')}><div className="modal" onClick={e=>e.stopPropagation()}>
       <button className="modal-close icon-button" onClick={()=>setModal('none')}><X size={18}/></button>
-      {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. Aurix will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Connection only. Trading is not enabled in this preview.</div></> :
+      {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. PioSwap will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Connection only. Trading is not enabled in this preview.</div></> :
       <><div className="modal-symbol"><ShieldCheck size={24}/></div><h2>Execution not configured</h2><p>This preview does not have a verified PIO contract, swap provider, chain configuration, or transaction preflight. No transaction will be submitted.</p><button className="primary-button full" onClick={()=>setModal('none')}>Got it <Check size={16}/></button></>}
     </div></div>}
-    <footer className="footer"><span>© 2026 Aurix</span><span>Market data by CoinGecko · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview build · trading disabled</span></footer>
+    <footer className="footer"><span>© 2026 PioSwap</span><span>Market data by CoinGecko · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview build · trading disabled</span></footer>
   </div>
 }
 
@@ -303,6 +315,34 @@ function ArrowUpDownIcon(){return <ArrowDownUp size={16}/>}
 function AssetTable({rows,watchlist,toggleWatch,onSelect}:{rows:Asset[];watchlist:string[];toggleWatch:(s:string)=>void;onSelect:()=>void}) {
   return <div className="table-wrap"><table className="asset-table"><thead><tr><th>Asset</th><th>Price</th><th>24h change</th><th className="right market-cap-col">Market cap</th><th className="right">Watch</th></tr></thead><tbody>{rows.map((a,i)=><tr key={`${a.id ?? a.symbol}-${i}`} onClick={onSelect}><td><div className="asset-cell"><AssetIcon asset={a}/><span><strong>{a.name}</strong><small>{a.symbol}{a.symbol==='PIO'?' · Unverified':''}</small></span></div></td><td className={a.symbol==='PIO'?'muted-text':'mono'}>{a.price}</td><td><span className={`change ${a.positive?'positive':'negative'}`}>{a.symbol==='PIO'?'—':a.change}</span></td><td className="right mono market-cap-col">{a.symbol==='PIO'?'—':formatCompactUsd(a.marketCap)}</td><td className="right"><button className={`star-button ${watchlist.includes(a.symbol)?'starred':''}`} aria-label={`Toggle ${a.symbol} watchlist`} onClick={e=>{e.stopPropagation();toggleWatch(a.symbol)}}><Star size={16} fill={watchlist.includes(a.symbol)?'currentColor':'none'}/></button></td></tr>)}</tbody></table></div>
 }
+const chainMeta: Record<string,{logo:string;type:'ready'|'soon';native:string;chainId?:number}> = {
+  'Ethereum':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/info/logo.png',type:'ready',native:'ETH',chainId:1},
+  'Arbitrum':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/arbitrum/info/logo.png',type:'ready',native:'ETH',chainId:42161},
+  'Base':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/base/info/logo.png',type:'ready',native:'ETH',chainId:8453},
+  'Optimism':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/optimism/info/logo.png',type:'ready',native:'ETH',chainId:10},
+  'Polygon':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/polygon/info/logo.png',type:'ready',native:'POL',chainId:137},
+  'BNB Chain':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/binance/info/logo.png',type:'ready',native:'BNB',chainId:56},
+  'Avalanche':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/avalanchec/info/logo.png',type:'ready',native:'AVAX',chainId:43114},
+  'Solana':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png',type:'ready',native:'SOL',chainId:1151111081099710},
+  'Linea':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/linea/info/logo.png',type:'ready',native:'ETH',chainId:59144},
+  'zkSync Era':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/zksync/info/logo.png',type:'ready',native:'ETH',chainId:324},
+  'Scroll':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/scroll/info/logo.png',type:'ready',native:'ETH',chainId:534352},
+  'Gnosis':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/xdai/info/logo.png',type:'ready',native:'xDAI',chainId:100},
+  'Celo':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/celo/info/logo.png',type:'ready',native:'CELO',chainId:42220},
+  'Mantle':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/mantle/info/logo.png',type:'ready',native:'MNT',chainId:5000},
+  'Fantom':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/fantom/info/logo.png',type:'ready',native:'FTM',chainId:250},
+  'Cronos':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/cronos/info/logo.png',type:'ready',native:'CRO',chainId:25},
+  'Sui':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/sui/info/logo.png',type:'soon',native:'SUI'},
+  'Bitcoin':{logo:'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png',type:'soon',native:'BTC'},
+  'TON':{logo:'https://coin-images.coingecko.com/coins/images/17980/large/ton_symbol.png',type:'soon',native:'TON'}
+}
+function ChainPicker({value,onChange,label}:{value:string;onChange:(v:string)=>void;label:string}) {
+ const [open,setOpen]=useState(false); const [query,setQuery]=useState('')
+ const options=Object.keys(chainMeta).filter(n=>n.toLowerCase().includes(query.toLowerCase()))
+ const meta=chainMeta[value] || chainMeta.Ethereum
+ return <div className="chain-picker-wrap"><span className="chain-picker-label">{label}</span><button type="button" className={`chain-picker-trigger ${open?'is-open':''}`} aria-expanded={open} onClick={()=>{setOpen(!open);setQuery('')}}><img src={meta.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span className="chain-picker-current"><strong>{value}</strong><small>{meta.type==='ready'?'Network selectable':'Coming soon'}</small></span><ChevronDown size={16}/></button>{open&&<><button className="picker-scrim" aria-label="Close network selector" onClick={()=>setOpen(false)}/><div className="chain-picker-menu"><div className="chain-menu-title">Choose network <button type="button" className="icon-button" onClick={()=>setOpen(false)}><X size={15}/></button></div><div className="chain-menu-search"><Search size={15}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search networks"/></div><div className="chain-menu-list">{options.map(name=>{const item=chainMeta[name];return <button type="button" key={name} disabled={item.type==='soon'} className={`chain-menu-option ${name===value?'selected':''} ${item.type==='soon'?'coming-soon':''}`} onClick={()=>{if(item.type==='ready'){onChange(name);setOpen(false)}}}><img src={item.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span><strong>{name}</strong><small>{item.type==='ready'?`Native asset · ${item.native}`:'Coming soon'}</small></span>{item.type==='soon'?<em>Coming soon</em>:name===value?<Check size={16}/>:null}</button>})}</div></div></>}</div>
+}
+
 function Swap({assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount,wallet,onConnect,onPreview,notify}:{assets:Asset[];fromAsset:string;toAsset:string;setFromAsset:(s:string)=>void;setToAsset:(s:string)=>void;amount:string;setAmount:(s:string)=>void;wallet:string;onConnect:()=>void;onPreview:()=>void;notify:(s:string)=>void}) {
   const [advanced,setAdvanced] = useState(false)
   const [slippage,setSlippage] = useState('0.50')
@@ -310,13 +350,39 @@ function Swap({assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount
   const [fromChain,setFromChain] = useState('Ethereum')
   const [toChain,setToChain] = useState('Ethereum')
   const [tokenQuery,setTokenQuery] = useState('')
-  const chains = ['Ethereum','Arbitrum','Base','Optimism','Polygon','BNB Chain','Avalanche','Solana']
+  const [chainTokenList,setChainTokenList] = useState<Record<string,Asset[]>>({})
+  const [tokenListLoading,setTokenListLoading] = useState(false)
   const chainTokens: Record<string,string[]> = {
     'Ethereum':['ETH','USDC','USDT','WBTC','LINK','UNI'], 'Arbitrum':['ETH','USDC','USDT','ARB','LINK'],
     'Base':['ETH','USDC','AERO'], 'Optimism':['ETH','USDC','OP'], 'Polygon':['POL','USDC','USDT','LINK'],
     'BNB Chain':['BNB','USDT','CAKE'], 'Avalanche':['AVAX','USDC','USDT','LINK'], 'Solana':['SOL','USDC','USDT','JUP']
   }
-  const tokenList = assets.filter(a => chainTokens[(assetSelect==='from'?fromChain:toChain)]?.includes(a.symbol) && `${a.name} ${a.symbol}`.toLowerCase().includes(tokenQuery.toLowerCase()))
+  const selectedChain = assetSelect === 'from' ? fromChain : toChain
+  useEffect(() => {
+    if (!assetSelect) return
+    const meta = chainMeta[selectedChain]
+    if (!meta?.chainId) return
+    if (chainTokenList[selectedChain]?.length) return
+    let cancelled = false
+    setTokenListLoading(true)
+    fetch(`https://li.quest/v1/tokens?chains=${meta.chainId}`)
+      .then(r => { if (!r.ok) throw new Error('Token list unavailable'); return r.json() })
+      .then(data => {
+        const raw = data?.tokens?.[String(meta.chainId)]
+        if (!Array.isArray(raw)) throw new Error('Unexpected token-list response')
+        const mapped: Asset[] = raw.filter((t:any) => t?.symbol && t?.name && t?.address).map((t:any) => ({
+          symbol:String(t.symbol).toUpperCase(), name:String(t.name), color:'#C6A45A', letter:String(t.symbol).slice(0,1).toUpperCase(),
+          logo:typeof t.logoURI==='string'?t.logoURI:undefined, id:String(t.address), price: t.priceUSD ? formatUsd(Number(t.priceUSD)) : '—',
+          change:'—', positive:true
+        }))
+        if (!cancelled) setChainTokenList(prev => ({...prev,[selectedChain]:mapped}))
+      })
+      .catch(() => { /* keep only known fallback assets for this network */ })
+      .finally(() => { if (!cancelled) setTokenListLoading(false) })
+    return () => { cancelled = true }
+  }, [assetSelect, selectedChain, chainTokenList])
+  const tokenList = (chainTokenList[selectedChain]?.length ? chainTokenList[selectedChain] : assets.filter(a => chainTokens[selectedChain]?.includes(a.symbol)))
+    .filter(a => a.symbol !== 'PIO' && `${a.name} ${a.symbol}`.toLowerCase().includes(tokenQuery.toLowerCase()))
   const from=assets.find(a=>a.symbol===fromAsset) ?? seedAssets[0], to=assets.find(a=>a.symbol===toAsset) ?? seedAssets[1]
   const sameChain = fromChain === toChain
   const supportedToken = (chain:string,symbol:string) => Boolean(chainTokens[chain]?.includes(symbol))
@@ -324,9 +390,9 @@ function Swap({assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount
     if(side==='from'){setFromChain(chain); if(!supportedToken(chain,fromAsset)) setFromAsset((chainTokens[chain]||['ETH'])[0])}
     else {setToChain(chain); if(!supportedToken(chain,toAsset)) setToAsset((chainTokens[chain]||['ETH'])[0])}
   }
-  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / SWAP" title="Swap, with clarity." description="Choose a network first, then choose a token available on that network. No invented quotes or routes."/>
+  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / SWAP" title="Swap, with clarity." description="Choose a network first, then search its provider-listed token catalogue. Routes are only shown when a live quote provider is connected."/>
     <div className="swap-layout"><div className="swap-main panel swap-luxury-card">
-      <div className="chain-pair-selectors"><label><span>PAY ON</span><select value={fromChain} onChange={e=>chooseChain('from',e.target.value)}>{chains.map(c=><option key={c}>{c}</option>)}</select></label><label><span>RECEIVE ON</span><select value={toChain} onChange={e=>chooseChain('to',e.target.value)}>{chains.map(c=><option key={c}>{c}</option>)}</select></label></div>
+      <div className="chain-pair-selectors"><ChainPicker label="PAY ON" value={fromChain} onChange={c=>chooseChain('from',c)}/><ChainPicker label="RECEIVE ON" value={toChain} onChange={c=>chooseChain('to',c)}/></div>
       <div className="swap-card-head"><div className="eyebrow">YOU PAY · {fromChain.toUpperCase()}</div><span className="muted-text">Wallet balance not indexed</span></div>
       <div className="amount-row"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00" inputMode="decimal" aria-label="Amount to pay"/><button className="token-select" onClick={()=>{setAssetSelect('from');setTokenQuery('')}}><AssetIcon asset={from} size="sm"/>{from.symbol}<ChevronDown size={15}/></button></div>
       <div className="amount-foot"><span>USD estimate requires a verified quote</span><button onClick={()=>notify(wallet?'Wallet balance lookup is not integrated yet.':'Connect a wallet to inspect balance.')}>MAX</button></div>
@@ -334,14 +400,14 @@ function Swap({assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount
       <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE · {toChain.toUpperCase()}</div><span className="muted-text">No live quote</span></div>
       <div className="amount-row"><div className="output-amount">—</div><button className="token-select" onClick={()=>{setAssetSelect('to');setTokenQuery('')}}><AssetIcon asset={to} size="sm"/>{to.symbol}<ChevronDown size={15}/></button></div>
       <div className="amount-foot"><span>Output appears only after a provider returns a quote</span></div>
-      {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'pay':'receive'} token · {assetSelect==='from'?fromChain:toChain}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search available tokens"/>{tokenList.length?tokenList.map(a=><button key={`${assetSelect}-${a.symbol}`} className="picker-row" onClick={()=>{assetSelect==='from'?setFromAsset(a.symbol):setToAsset(a.symbol);setAssetSelect(null)}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No verified token list for this network yet.</div>}</div>}
+      {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'pay':'receive'} token · {assetSelect==='from'?fromChain:toChain}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><div className="token-picker-meta">{chainTokenList[selectedChain]?.length ? `${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens` : 'Known tokens only until the live list loads'}</div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search tokens by name or symbol"/>{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading verified network token list…</div>:tokenList.length?tokenList.map(a=><button key={`${assetSelect}-${a.symbol}`} className="picker-row" onClick={()=>{assetSelect==='from'?setFromAsset(a.symbol):setToAsset(a.symbol);setAssetSelect(null)}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No verified token list for this network yet.</div>}</div>}
       <div className="quote-summary"><div><span>Route</span><strong>{sameChain?'Same-chain route':'Cross-chain route required'}</strong></div><div><span>Network fee</span><strong>Unavailable</strong></div><div><span>Price impact</span><strong>Unavailable</strong></div><div><span>Quote status</span><strong>Provider not connected</strong></div></div>
       {!sameChain&&<div className="inline-warning"><ShieldCheck size={15}/> You selected different networks. Use Cross-Chain to check bridge availability; no bridge quote is currently available.</div>}
       <button className="disclosure-row" onClick={()=>setAdvanced(!advanced)}><span><Settings2 size={15}/> Advanced settings</span><ChevronDown size={15} className={advanced?'rotated':''}/></button>
       {advanced&&<div className="advanced-settings"><label>Slippage tolerance</label><div className="slippage-options">{['0.10','0.50','1.00'].map(s=><button key={s} className={slippage===s?'selected':''} onClick={()=>setSlippage(s)}>{s}%</button>)}</div><p>Preference only. Execution remains disabled until a provider supplies a validated quote and transaction data.</p></div>}
       <button className="primary-button full swap-cta" onClick={()=>{if(!wallet){onConnect();return} if(!amount||Number(amount)<=0){notify('Enter an amount greater than zero.');return} if(fromAsset===toAsset&&fromChain===toChain){notify('Choose different assets to swap.');return} notify('No live route provider is connected. Nothing was submitted.')}}>{wallet?'Check live route':'Connect wallet to continue'} <ArrowRight size={16}/></button>
       <div className="safe-note"><ShieldCheck size={15}/> No transaction is submitted without a verified provider quote.</div>
-    </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Before a swap can execute</strong></div><p>A live router must return a quote and transaction payload. Aurix will validate chain, token addresses, recipient, approvals, fees and quote expiry before wallet handoff.</p><ul><li><Check size={14}/> Network and token selection</li><li><Check size={14}/> Itemized fees</li><li><Check size={14}/> Quote freshness</li><li><Check size={14}/> Wallet confirmation</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO token details have not been supplied. It is intentionally excluded from selectable trade assets.</p><span className="pill warning">Not tradable yet</span></div></aside></div>
+    </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Before a swap can execute</strong></div><p>A live router must return a quote and transaction payload. PioSwap will validate chain, token addresses, recipient, approvals, fees and quote expiry before wallet handoff.</p><ul><li><Check size={14}/> Network and token selection</li><li><Check size={14}/> Itemized fees</li><li><Check size={14}/> Quote freshness</li><li><Check size={14}/> Wallet confirmation</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO token details have not been supplied. It is intentionally excluded from selectable trade assets.</p><span className="pill warning">Not tradable yet</span></div></aside></div>
   </div>
 }
 
@@ -357,7 +423,7 @@ function AdvancedTrading({notify}:{notify:(s:string)=>void}) {
 }
 function CrossChain({notify,wallet,onConnect}:{notify:(s:string)=>void;wallet:string;onConnect:()=>void}) {
   const [from,setFrom]=useState('Ethereum');const [to,setTo]=useState('Solana');const [asset,setAsset]=useState('USDC');const [amount,setAmount]=useState('')
-  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / CROSS-CHAIN" title="One flow. Two chains." description="Compare a source and destination before committing to a route."/><div className="panel bridge-panel"><div className="chain-label">FROM NETWORK</div><div className="chain-select"><span className="chain-icon eth"><img src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/ethereum/info/logo.png" alt="Ethereum logo"/></span><select value={from} onChange={e=>setFrom(e.target.value)}><option>Ethereum</option><option>Arbitrum</option><option>Base</option><option>Polygon</option></select><ChevronDown size={15}/></div><label>Token and amount</label><div className="amount-row bridge-amount"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00"/><select value={asset} onChange={e=>setAsset(e.target.value)}><option>USDC</option><option>ETH</option><option>USDT</option></select></div><div className="bridge-switch"><button className="round-icon" onClick={()=>{setFrom(to);setTo(from)}}><ArrowDownUp size={16}/></button></div><div className="chain-label">TO NETWORK</div><div className="chain-select"><span className="chain-icon sol"><img src="https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png" alt="Solana logo"/></span><select value={to} onChange={e=>setTo(e.target.value)}><option>Solana</option><option>Ethereum</option><option>Arbitrum</option><option>Base</option><option>Polygon</option></select><ChevronDown size={15}/></div><div className="bridge-disclosure"><div><span>Route provider</span><strong>Not configured</strong></div><div><span>Estimated receive</span><strong>—</strong></div><div><span>Network and provider fees</span><strong>—</strong></div><div><span>Destination confirmation</span><strong>Unavailable</strong></div></div><button className="primary-button full" onClick={()=>{if(from===to)notify('Choose two different networks.');else if(!wallet)onConnect();else notify('Cross-chain execution is disabled until a supported provider and token configuration are verified.')}}>{wallet?'Check route availability':'Connect wallet'} <ArrowRight size={16}/></button><div className="safe-note"><ShieldCheck size={15}/> No bridge route or completion time is being promised.</div></div></div>
+  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / CROSS-CHAIN" title="One flow. Two chains." description="Compare a source and destination before committing to a route."/><div className="panel bridge-panel"><div className="chain-label">FROM NETWORK</div><ChainPicker label="FROM NETWORK" value={from} onChange={setFrom}/><label>Token and amount</label><div className="amount-row bridge-amount"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00"/><select value={asset} onChange={e=>setAsset(e.target.value)}><option>USDC</option><option>ETH</option><option>USDT</option></select></div><div className="bridge-switch"><button className="round-icon" onClick={()=>{setFrom(to);setTo(from)}}><ArrowDownUp size={16}/></button></div><div className="chain-label">TO NETWORK</div><ChainPicker label="TO NETWORK" value={to} onChange={setTo}/><div className="bridge-disclosure"><div><span>Route provider</span><strong>Provider integration pending</strong></div><div><span>Estimated receive</span><strong>—</strong></div><div><span>Network and provider fees</span><strong>—</strong></div><div><span>Destination confirmation</span><strong>Unavailable</strong></div></div><button className="primary-button full" onClick={()=>{if(from===to)notify('Choose two different networks.');else if(!wallet)onConnect();else notify('Cross-chain execution is disabled until a supported provider and token configuration are verified.')}}>{wallet?'Check route availability':'Connect wallet'} <ArrowRight size={16}/></button><div className="safe-note"><ShieldCheck size={15}/> No bridge route or completion time is being promised.</div></div></div>
 }
 function ReferralProgram({wallet,notify}:{wallet:string;notify:(s:string)=>void}) {
   const [address,setAddress]=useState('')
@@ -375,11 +441,49 @@ function ReferralProgram({wallet,notify}:{wallet:string;notify:(s:string)=>void}
   </div>
 }
 
-function Portfolio({privacy,setPrivacy,wallet,onConnect}:{privacy:boolean;setPrivacy:(b:boolean)=>void;wallet:string;onConnect:()=>void}) {
-  return <div className="page-content"><PageHeader eyebrow="MANAGE / PORTFOLIO" title="Your assets, in context." description="Real balances and valuations will populate after wallet and data integrations are configured." right={<button className="icon-button" onClick={()=>setPrivacy(!privacy)}>{privacy?<Eye size={17}/>:<EyeOff size={17}/>}</button>}/><div className="portfolio-overview-grid"><div className="panel portfolio-large"><span className="muted-label">TOTAL VERIFIED VALUE</span><div className="portfolio-value">{privacy?'••••••':'— — —'}</div><div className="portfolio-sub">{wallet?'Wallet connected · price provider unavailable':'No wallet connected'}</div><div className="allocation-empty"><div className="empty-ring"/><span>Allocation unavailable until real holdings are indexed.</span></div>{!wallet&&<button className="primary-button" onClick={onConnect}>Connect wallet <ArrowRight size={15}/></button>}</div><div className="panel portfolio-large"><div className="panel-top"><h3>Network exposure</h3><Globe2 size={17}/></div><div className="empty-state"><div className="empty-icon"><Grid2X2 size={22}/></div><strong>No network data yet</strong><p>Holdings and allocation will be calculated from verified wallet data.</p></div></div></div><div className="panel market-panel"><div className="section-in-panel"><h3>Token holdings</h3><span className="pill neutral">Waiting for indexer</span></div><div className="empty-state compact"><Wallet size={24}/><strong>Your holdings will appear here</strong><p>No balances are invented or assumed to be zero.</p></div></div></div>
+function Portfolio({privacy,setPrivacy,wallet,assets,onConnect}:{privacy:boolean;setPrivacy:(b:boolean)=>void;wallet:string;assets:Asset[];onConnect:()=>void}) {
+  type NativeHolding={chain:string;symbol:string;balance:string;usd:number|null;status:string}
+  const [holdings,setHoldings]=useState<NativeHolding[]>([])
+  const [loading,setLoading]=useState(false)
+  const [loadError,setLoadError]=useState('')
+  const [refreshKey,setRefreshKey]=useState(0)
+  useEffect(()=>{
+    let cancelled=false
+    if(!wallet){setHoldings([]);setLoadError('');setLoading(false);return}
+    const networks=[
+      {chain:'Ethereum',symbol:'ETH',rpc:'https://cloudflare-eth.com'},
+      {chain:'Arbitrum',symbol:'ETH',rpc:'https://arb1.arbitrum.io/rpc'},
+      {chain:'Base',symbol:'ETH',rpc:'https://mainnet.base.org'},
+      {chain:'Optimism',symbol:'ETH',rpc:'https://mainnet.optimism.io'},
+      {chain:'Polygon',symbol:'POL',rpc:'https://polygon-rpc.com'},
+      {chain:'BNB Chain',symbol:'BNB',rpc:'https://bsc-dataseed.binance.org'}
+    ]
+    const run=async()=>{
+      setLoading(true);setLoadError('')
+      const results:NativeHolding[]=[]
+      let failures=0
+      await Promise.all(networks.map(async n=>{
+        try{
+          const res=await fetch(n.rpc,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getBalance',params:[wallet,'latest']})})
+          if(!res.ok)throw new Error('RPC unavailable')
+          const json=await res.json() as {result?:string;error?:unknown}
+          if(!json.result||json.error)throw new Error('RPC response invalid')
+          const wei=BigInt(json.result)
+          const whole=Number(wei)/1e18
+          if(whole>0){const priceAsset=assets.find(a=>a.symbol===n.symbol);const price=priceAsset?Number(priceAsset.price.replace(/[$,]/g,'')):NaN;results.push({chain:n.chain,symbol:n.symbol,balance:whole.toLocaleString(undefined,{maximumFractionDigits:6}),usd:Number.isFinite(price)?whole*price:null,status:'Native balance via public RPC'})}
+        }catch{failures++}
+      }))
+      if(!cancelled){setHoldings(results.sort((a,b)=>(b.usd??0)-(a.usd??0)));setLoadError(failures===networks.length?'Public RPC endpoints were unavailable. Retry later.':failures?'Some networks could not be queried; displayed holdings may be partial.':'');setLoading(false)}
+    }
+    void run()
+    return()=>{cancelled=true}
+  },[wallet,assets,refreshKey])
+  const total=holdings.reduce((sum,h)=>sum+(h.usd??0),0)
+  const hasUnpriced=holdings.some(h=>h.usd===null)
+  return <div className="page-content"><PageHeader eyebrow="MANAGE / PORTFOLIO" title="Your assets, in context." description="Native balances are queried directly from supported EVM networks. Token balances and full portfolio indexing are not included yet." right={<button className="icon-button" onClick={()=>setPrivacy(!privacy)} aria-label={privacy?'Show portfolio values':'Hide portfolio values'}>{privacy?<Eye size={17}/>:<EyeOff size={17}/>}</button>}/><div className="portfolio-overview-grid"><div className="panel portfolio-large"><span className="muted-label">ESTIMATED NATIVE-ASSET VALUE</span><div className="portfolio-value">{privacy?'••••••':holdings.length?`${hasUnpriced?'≈ ':''}${formatUsd(total)}`:'— — —'}</div><div className="portfolio-sub">{wallet?loading?'Reading balances from public RPCs…':`Connected ${fmtAddress(wallet)} · ${holdings.length} native balance${holdings.length===1?'':'s'} found`:'No wallet connected'}</div><div className="allocation-empty"><div className="empty-ring"/><span>Value excludes ERC-20/SPL tokens and may be partial. Missing prices are not counted as zero.</span></div>{!wallet&&<button className="primary-button" onClick={onConnect}>Connect wallet <ArrowRight size={15}/></button>}</div><div className="panel portfolio-large"><div className="panel-top"><h3>Network exposure</h3><Globe2 size={17}/></div>{holdings.length?<div className="native-holdings">{holdings.map(h=><div className="native-holding-row" key={h.chain}><span>{h.chain}</span><strong>{privacy?'••••':`${h.balance} ${h.symbol}`}</strong></div>)}</div>:<div className="empty-state"><div className="empty-icon"><Grid2X2 size={22}/></div><strong>{loading?'Checking supported networks…':'No native balances found'}</strong><p>{wallet?'Only supported EVM native assets are queried. Other chains show as coming soon.':'Connect a wallet to read public on-chain balances.'}</p></div>}</div></div><div className="panel market-panel"><div className="section-in-panel"><h3>Native asset holdings</h3><span className="pill neutral">{loading?'Refreshing':holdings.length?'RPC data':'No data'}</span></div>{loadError&&<div className="data-note">{loadError}</div>}{holdings.length?<div className="native-holdings">{holdings.map(h=><div className="native-holding-row" key={h.chain}><div><strong>{h.symbol}</strong><small>{h.chain} · {h.status}</small></div><strong>{privacy?'••••':`${h.balance} ${h.symbol}`}</strong><strong>{privacy?'••••':h.usd===null?'Price unavailable':formatUsd(h.usd)}</strong></div>)}</div>:<div className="empty-state compact"><Wallet size={24}/><strong>{loading?'Loading balances':'No native balances to display'}</strong><p>{wallet?'Token balances require a token indexer; this page currently queries native coin balances only.':'Connect a wallet to begin.'}</p></div>}{wallet&&<button className="secondary-button" onClick={()=>setRefreshKey(k=>k+1)}>Refresh balances</button>}</div></div>
 }
 function ActivityPage({wallet}:{wallet:string}) {
-  return <div className="page-content"><PageHeader eyebrow="MANAGE / ACTIVITY" title="Every step, visible." description="A single view of supported on-chain activity, with statuses backed by verified transaction data."/><div className="activity-filters">{['All','Swaps','Cross-chain','Approvals'].map((t,i)=><button key={t} className={i===0?'selected':''}>{t}</button>)}</div><div className="panel empty-state large"><div className="empty-icon"><Activity size={24}/></div><strong>{wallet?'No indexed activity yet':'Connect a wallet to begin'}</strong><p>{wallet?'An activity indexer is not configured, so no transaction history can be shown.':'Aurix will only display transactions that can be verified from supported chain data.'}</p></div></div>
+  return <div className="page-content"><PageHeader eyebrow="MANAGE / ACTIVITY" title="Every step, visible." description="A single view of supported on-chain activity, with statuses backed by verified transaction data."/><div className="activity-filters">{['All','Swaps','Cross-chain','Approvals'].map((t,i)=><button key={t} className={i===0?'selected':''}>{t}</button>)}</div><div className="panel empty-state large"><div className="empty-icon"><Activity size={24}/></div><strong>{wallet?'No indexed activity yet':'Connect a wallet to begin'}</strong><p>{wallet?'An activity indexer is not configured, so no transaction history can be shown.':'PioSwap will only display transactions that can be verified from supported chain data.'}</p></div></div>
 }
 function TokenExplorer({assets:rows,query,setQuery}:{assets:Asset[];query:string;setQuery:(s:string)=>void}) {
   return <div className="page-content"><PageHeader eyebrow="DISCOVER / TOKEN EXPLORER" title="Look closer." description="Search assets and distinguish token identity from liquidity and risk."/><div className="search-field explorer-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Token name, symbol, or contract address"/></div><div className="panel market-panel"><AssetTable rows={rows} watchlist={[]} toggleWatch={()=>{}} onSelect={()=>{}}/><div className="data-note"><ShieldCheck size={15}/> PIO identity and contract details are not yet configured. Verification is not a guarantee of safety.</div></div><div className="panel explainer"><h3>What verification means</h3><div className="explainer-grid"><div><strong>Identity</strong><p>Network, contract address, decimals, and authoritative references.</p></div><div><strong>Market quality</strong><p>Liquidity and pricing quality when reliable data is available.</p></div><div><strong>Risk signals</strong><p>Independent warnings where supported, without a universal safety guarantee.</p></div></div></div></div>
@@ -392,7 +496,7 @@ function SecurityCenter() {
   return <div className="page-content"><PageHeader eyebrow="DISCOVER / SECURITY" title="Know before you sign." description="Security controls must reflect actual checks, not a decorative safety score."/><div className="security-banner"><div className="security-banner-icon"><ShieldCheck size={24}/></div><div><strong>Trading is disabled in this preview.</strong><p>No claim of production security or audit status is made.</p></div><span className="pill warning">Preview</span></div><div className="panel checks-panel">{checks.map(([t,d])=><div className="check-row" key={t}><div className="check-row-icon"><FileCheck2 size={17}/></div><div><strong>{t}</strong><span>{d}</span></div><span className="pill neutral">Pending</span></div>)}</div><div className="panel explainer"><h3>Before launch</h3><p>Enable execution only after token and network verification, quote validation, transaction-target checks, simulation where supported, independent security review, and critical-path tests are complete.</p></div></div>
 }
 function SettingsPage({theme,setTheme,settings,setSettings,notify}:{theme:'dark'|'light';setTheme:(t:'dark'|'light')=>void;settings:{alerts:boolean;slippage:string;compact:boolean};setSettings:(s:{alerts:boolean;slippage:string;compact:boolean})=>void;notify:(s:string)=>void}) {
-  return <div className="page-content"><PageHeader eyebrow="PREFERENCES" title="Make it yours." description="Preferences stay on this device in this version."/><div className="settings-layout"><div className="panel settings-panel"><h3>Appearance</h3><p>Choose the surface that feels right.</p><div className="theme-choices"><button className={theme==='dark'?'selected':''} onClick={()=>setTheme('dark')}><span className="theme-swatch dark-swatch"/>Dark graphite {theme==='dark'&&<Check size={15}/>}</button><button className={theme==='light'?'selected':''} onClick={()=>setTheme('light')}><span className="theme-swatch light-swatch"/>Warm ivory {theme==='light'&&<Check size={15}/>}</button></div><div className="setting-row"><div><strong>Compact data tables</strong><span>Reduce vertical spacing in dense market views.</span></div><button className={`switch ${settings.compact?'on':''}`} onClick={()=>setSettings({...settings,compact:!settings.compact})} aria-label="Toggle compact tables"><span/></button></div><div className="setting-row"><div><strong>Asset alerts</strong><span>Opt in to alerts when a notification service is available.</span></div><button className={`switch ${settings.alerts?'on':''}`} onClick={()=>setSettings({...settings,alerts:!settings.alerts})} aria-label="Toggle asset alerts"><span/></button></div><div className="setting-row"><div><strong>Default slippage</strong><span>Applied only as a preference; execution is not enabled.</span></div><select className="small-select" value={settings.slippage} onChange={e=>setSettings({...settings,slippage:e.target.value})}><option value="0.10">0.10%</option><option value="0.50">0.50%</option><option value="1.00">1.00%</option></select></div><button className="secondary-button" onClick={()=>notify('Preferences are saved locally in this browser.')}>Save preferences <Check size={15}/></button></div><div className="panel settings-panel"><h3>Privacy & wallet</h3><p>Connection does not grant custody or authorize transactions.</p><div className="setting-row"><div><strong>Local-first preferences</strong><span>No account or cloud sync is configured.</span></div><span className="pill neutral">On device</span></div><div className="setting-row"><div><strong>Seed phrase storage</strong><span>Aurix never requests or stores recovery phrases.</span></div><ShieldCheck size={19}/></div><div className="setting-row"><div><strong>Network preferences</strong><span>Network support will be enabled after validation.</span></div><span className="pill neutral">Pending</span></div></div></div></div>
+  return <div className="page-content"><PageHeader eyebrow="PREFERENCES" title="Make it yours." description="Preferences stay on this device in this version."/><div className="settings-layout"><div className="panel settings-panel"><h3>Appearance</h3><p>Choose the surface that feels right.</p><div className="theme-choices"><button className={theme==='dark'?'selected':''} onClick={()=>setTheme('dark')}><span className="theme-swatch dark-swatch"/>Dark graphite {theme==='dark'&&<Check size={15}/>}</button><button className={theme==='light'?'selected':''} onClick={()=>setTheme('light')}><span className="theme-swatch light-swatch"/>Warm ivory {theme==='light'&&<Check size={15}/>}</button></div><div className="setting-row"><div><strong>Compact data tables</strong><span>Reduce vertical spacing in dense market views.</span></div><button className={`switch ${settings.compact?'on':''}`} onClick={()=>setSettings({...settings,compact:!settings.compact})} aria-label="Toggle compact tables"><span/></button></div><div className="setting-row"><div><strong>Asset alerts</strong><span>Opt in to alerts when a notification service is available.</span></div><button className={`switch ${settings.alerts?'on':''}`} onClick={()=>setSettings({...settings,alerts:!settings.alerts})} aria-label="Toggle asset alerts"><span/></button></div><div className="setting-row"><div><strong>Default slippage</strong><span>Applied only as a preference; execution is not enabled.</span></div><select className="small-select" value={settings.slippage} onChange={e=>setSettings({...settings,slippage:e.target.value})}><option value="0.10">0.10%</option><option value="0.50">0.50%</option><option value="1.00">1.00%</option></select></div><button className="secondary-button" onClick={()=>notify('Preferences are saved locally in this browser.')}>Save preferences <Check size={15}/></button></div><div className="panel settings-panel"><h3>Privacy & wallet</h3><p>Connection does not grant custody or authorize transactions.</p><div className="setting-row"><div><strong>Local-first preferences</strong><span>No account or cloud sync is configured.</span></div><span className="pill neutral">On device</span></div><div className="setting-row"><div><strong>Seed phrase storage</strong><span>PioSwap never requests or stores recovery phrases.</span></div><ShieldCheck size={19}/></div><div className="setting-row"><div><strong>Network preferences</strong><span>Network support will be enabled after validation.</span></div><span className="pill neutral">Pending</span></div></div></div></div>
 }
 function Unavailable({title,eyebrow,description}:{title:string;eyebrow:string;description:string}) {
   return <div className="page-content"><PageHeader eyebrow={eyebrow} title={title} description={description}/><div className="panel empty-state large"><div className="empty-icon"><LockKeyhole size={23}/></div><strong>Not enabled in this build</strong><p>This area is designed into the product, but the underlying service is not connected. It will not show simulated activity as real.</p><span className="pill neutral">Integration required</span></div></div>
