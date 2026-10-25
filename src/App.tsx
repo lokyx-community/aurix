@@ -131,6 +131,20 @@ function App() {
     if (savedTheme === 'light' || savedTheme === 'dark') setTheme(savedTheme)
     const savedWatch = localStorage.getItem('aurix-watchlist')
     if (savedWatch) { try { setWatchlist(JSON.parse(savedWatch)) } catch { /* ignore invalid local preference */ } }
+    const savedSettings = localStorage.getItem('aurix-settings')
+    if (savedSettings) { try { setSettings({ alerts: true, slippage: '0.50', compact: false, ...JSON.parse(savedSettings) }) } catch { /* ignore invalid local preference */ } }
+    const provider = (window as Window & { ethereum?: { request: (args: {method:string}) => Promise<unknown>; on?: (event:string, callback:(value:unknown)=>void)=>void; removeListener?: (event:string, callback:(value:unknown)=>void)=>void } }).ethereum
+    if (!provider) return
+    const onAccountsChanged = (value: unknown) => {
+      const accounts = Array.isArray(value) ? value as string[] : []
+      setWallet(accounts[0] || '')
+      if (!accounts[0]) setToast('Wallet disconnected from this site.')
+    }
+    provider.on?.('accountsChanged', onAccountsChanged)
+    void provider.request({ method: 'eth_accounts' }).then(value => {
+      if (Array.isArray(value) && typeof value[0] === 'string') setWallet(value[0])
+    }).catch(() => undefined)
+    return () => provider.removeListener?.('accountsChanged', onAccountsChanged)
   }, [])
   useEffect(() => {
     let cancelled = false
@@ -159,6 +173,7 @@ function App() {
   }, [])
   useEffect(() => { localStorage.setItem('aurix-theme', theme) }, [theme])
   useEffect(() => { localStorage.setItem('aurix-watchlist', JSON.stringify(watchlist)) }, [watchlist])
+  useEffect(() => { localStorage.setItem('aurix-settings', JSON.stringify(settings)) }, [settings])
   useEffect(() => {
     if (!toast) return
     const id = window.setTimeout(() => setToast(''), 3400)
@@ -239,7 +254,7 @@ function App() {
     </div>
 
     <nav className="mobile-bottom-nav" aria-label="Main navigation">
-      {[{n:'Overview' as Page,i:LayoutDashboard},{n:'Swap' as Page,i:ArrowLeftRight},{n:'Markets' as Page,i:LineChart},{n:'Portfolio' as Page,i:Wallet},{n:'Activity' as Page,i:Activity}].map(it=><button key={it.n} className={page===it.n?'active':''} onClick={()=>navTo(it.n)}><it.i size={19}/><span>{it.n==='Overview'?'Home':it.n}</span></button>)}
+      {[{n:'Overview' as Page,i:LayoutDashboard},{n:'Swap' as Page,i:ArrowLeftRight},{n:'Markets' as Page,i:LineChart},{n:'Portfolio' as Page,i:Wallet},{n:'Activity' as Page,i:Activity},{n:'Referral Program' as Page,i:Sparkles}].map(it=><button key={it.n} className={page===it.n?'active':''} onClick={()=>navTo(it.n)}><it.i size={19}/><span>{it.n==='Overview'?'Home':it.n==='Referral Program'?'Refer':it.n}</span></button>)}
     </nav>
 
     {toast && <div className="toast"><Check size={16}/>{toast}<button onClick={()=>setToast('')}><X size={14}/></button></div>}
@@ -273,14 +288,14 @@ function Overview({onNavigate,wallet,privacy,setPrivacy,watchlist,toggleWatch,no
       </div>
       <div className="hero-side-note"><span>01 / TRADE WITH CLARITY</span><span className="vertical-line"/></div>
     </div>
-    <div className="status-strip"><div className="status-item"><span className="status-indicator muted"/> PIO token <strong>Awaiting verification</strong></div><div className="status-item"><span className="status-indicator"/> Wallet status <strong>{wallet?'Connected':'Not connected'}</strong></div><div className="status-item"><span className="status-indicator muted"/> Live data <strong>Not configured</strong></div></div>
+    <div className="status-strip"><div className="status-item"><span className="status-indicator muted"/> PIO token <strong>Awaiting verification</strong></div><div className="status-item"><span className="status-indicator"/> Wallet status <strong>{wallet?'Connected':'Not connected'}</strong></div><div className="status-item"><span className={`status-indicator ${marketStatus==='live'?'':'muted'}`}/> Market data <strong>{marketStatus==='live'?'Live feed':marketStatus==='loading'?'Loading':'Unavailable'}</strong></div></div>
     <div className="section-heading"><div><div className="eyebrow">YOUR OVERVIEW</div><h2>A little more clarity.</h2></div><button className="icon-button" onClick={()=>setPrivacy(!privacy)} title={privacy?'Show balances':'Hide balances'}>{privacy?<Eye size={17}/>:<EyeOff size={17}/>}</button></div>
     <div className="overview-grid">
       <div className="panel portfolio-card"><div className="panel-top"><span className="muted-label">TOTAL PORTFOLIO VALUE</span><span className="pill neutral">Wallet {wallet?'connected':'not connected'}</span></div><div className="portfolio-value">{privacy?'••••••':'— — —'}</div><div className="portfolio-sub">{wallet?'Live valuation provider not configured':'Connect your wallet to begin'}</div><div className="mini-chart"><svg viewBox="0 0 600 82" preserveAspectRatio="none" aria-label="No portfolio history available"><path d="M0 70 L600 70" stroke="currentColor" strokeOpacity=".1" fill="none" strokeDasharray="4 5"/><text x="300" y="45" textAnchor="middle" fill="currentColor" opacity=".48" fontSize="12">Portfolio history will appear here</text></svg></div><div className="portfolio-bottom"><span>Performance</span><span className="muted-text">Unavailable without historical data</span></div><button className="secondary-button full" onClick={()=>onNavigate('Portfolio')}>View portfolio <ArrowRight size={15}/></button></div>
       <div className="panel quick-swap"><div className="panel-heading"><div><div className="eyebrow">QUICK ACTION</div><h3>Swap, simply.</h3></div><button className="icon-button" onClick={()=>onNavigate('Swap')}><ArrowUpDownIcon/></button></div><div className="quick-swap-field"><span>You pay</span><strong>Enter amount</strong><span className="field-token"><span className="token-mini">Ξ</span> ETH <ChevronDown size={13}/></span></div><div className="swap-mid"><span><ArrowDownUp size={15}/></span></div><div className="quick-swap-field second"><span>You receive</span><strong>—</strong><span className="field-token"><span className="token-mini pio">P</span> PIO <ChevronDown size={13}/></span></div><div className="quote-hint"><ShieldCheck size={14}/> Quote and token verification required</div><button className="primary-button full" onClick={()=>onNavigate('Swap')}>Open swap <ArrowRight size={15}/></button></div>
     </div>
     <div className="section-heading market-section-head"><div><div className="eyebrow">MARKET WATCH</div><h2>Markets in focus.</h2></div><button className="text-button" onClick={()=>onNavigate('Markets')}>View all markets <ArrowRight size={15}/></button></div>
-    <div className="panel market-panel"><div className="table-tabs">{['Watchlist','All','Gainers'].map(t=><button key={t} className={marketTab===t?'active':''} onClick={()=>setMarketTab(t)}>{t}</button>)}</div><AssetTable rows={shown} watchlist={watchlist} toggleWatch={toggleWatch} onSelect={()=>onNavigate('Token Explorer')}/><div className="data-note"><span className={`status-indicator ${marketStatus==='live'?'':'muted'}`}/> {marketStatus==='live'?`Live market data via CoinGecko · refreshed ${marketUpdated}. PIO is not listed in this feed.`:marketStatus==='loading'?'Loading live market data…':'Live market data is temporarily unavailable or rate-limited. Values are not being fabricated.'}</div></div>
+    <div className="panel market-panel"><div className="table-tabs">{['Watchlist','All','Gainers'].map(t=><button key={t} className={marketTab===t?'active':''} onClick={()=>setMarketTab(t)}>{t}</button>)}</div><AssetTable rows={shown} watchlist={watchlist} toggleWatch={toggleWatch} onSelect={()=>onNavigate('Token Explorer')}/><div className="data-note"><span className={`status-indicator ${marketStatus==='live'?'':'muted'}`}/> {marketStatus==='live'?`Live market data via CoinGecko · refreshed ${marketUpdated}. PIO is not listed in this feed.`:marketStatus==='loading'?'Loading live market data…':'Live market data is temporarily unavailable or rate-limited. Values are not being fabricated.'} {marketStatus==='error'&&<button className="text-button" onClick={()=>window.location.reload()}>Retry</button>}</div></div>
     <div className="feature-row"><button className="feature-card" onClick={()=>onNavigate('Cross-Chain')}><div className="feature-icon"><Globe2 size={19}/></div><span className="feature-title">Across chains</span><span className="feature-desc">Compare routes before you move.</span><ArrowRight size={16}/></button><button className="feature-card" onClick={()=>onNavigate('Security Center')}><div className="feature-icon"><ShieldCheck size={19}/></div><span className="feature-title">Know before you sign</span><span className="feature-desc">Preflight checks, not guesswork.</span><ArrowRight size={16}/></button><button className="feature-card" onClick={()=>onNavigate('Activity')}><div className="feature-icon"><Activity size={19}/></div><span className="feature-title">Every step, visible</span><span className="feature-desc">Follow transactions from start to finish.</span><ArrowRight size={16}/></button></div>
   </div>
 }

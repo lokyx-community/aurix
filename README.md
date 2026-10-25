@@ -1,4 +1,4 @@
-# Aurix
+# PioSwap
 
 A premium, responsive multichain DEX interface starter built with React, TypeScript and Vite.
 
