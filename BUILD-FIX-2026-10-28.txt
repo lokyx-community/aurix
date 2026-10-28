@@ -1,0 +1,15 @@
+PioSwap TypeScript build-error fix
+
+Fixes included:
+1. src/integrations.ts: guards the optional LI.FI transactionRequest and uses a narrowed local reference before validating sender, target and calldata.
+2. src/LifiTradeWidget.tsx: adds the required top-level integrator field required by WidgetConfig in @lifi/widget 4.10.x.
+3. package.json: declares React 19 and React type packages 19 to match @lifi/widget 4.10.x peer dependencies.
+
+Install/build from this folder:
+  npm install
+  npm run build
+  npm run dev
+
+Do not copy a previously generated package-lock.json over the newly resolved dependency tree. If npm reports a stale lockfile, remove package-lock.json and node_modules, then run npm install again. Keep .env.local private; VITE_ variables are bundled into browser code and must never contain server-side secrets.
+
+These edits address the compiler errors supplied in the conversation. A complete build could not be run in this environment because dependencies were not installed here.

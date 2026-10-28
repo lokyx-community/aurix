@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import LifiTradeWidget from './LifiTradeWidget'
+import { EVM_CHAINS, type Eip1193Provider, type LifiQuote, type ProviderToken, executeLifiQuote, fetchLifiTokens, formatUnitsSafe, getLifiQuote, isEvmChainId, parseUnitsSafe } from './integrations'
 import {
   Activity, ArrowDownUp, ArrowLeftRight, ArrowRight, Bell, BookOpen, Check, ChevronDown,
   CircleHelp, Clock3, Command, Compass, Copy, ExternalLink, Eye, EyeOff, FileCheck2,
@@ -8,7 +10,7 @@ import {
 } from 'lucide-react'
 
 type Page = 'Overview' | 'Swap' | 'Markets' | 'Advanced Trading' | 'Limit Orders' | 'Portfolio' | 'Earn' | 'Cross-Chain' | 'Activity' | 'Token Explorer' | 'Analytics' | 'Security Center' | 'Referral Program' | 'Settings'
-type Asset = { symbol: string; name: string; color: string; letter: string; logo?: string; id?: string; price: string; change: string; positive: boolean; marketCap?: number; volume?: number; rank?: number }
+type Asset = { symbol: string; name: string; color: string; letter: string; logo?: string; id?: string; address?: string; decimals?: number; isNative?: boolean; price: string; change: string; positive: boolean; marketCap?: number; volume?: number; rank?: number }
 
 const pages: { name: Page; icon: typeof LayoutDashboard; group: string }[] = [
   { name: 'Overview', icon: LayoutDashboard, group: 'TRADE' },
@@ -111,7 +113,7 @@ function ParticleRibbon() {
 
 function Brand() {
   return <div className="brand" aria-label="PioSwap">
-    <span className="brand-mark" aria-hidden="true">P<span>·</span></span>
+    <img className="brand-coin" src="/pioswap-gold-coin-transparent.png" alt="" aria-hidden="true" />
     <span className="brand-name">Pio<span className="brand-light">Swap</span></span>
   </div>
 }
@@ -218,6 +220,46 @@ function App() {
   const masked = privacy ? '••••••' : '$ —'
 
   return <div className={`app theme-${theme}`}>
+    <style>{`
+      /* PioSwap polished gold identity and tactile button finish */
+      .app .brand { display: inline-flex; align-items: center; gap: 10px; }
+      .app .brand-coin { display: block; width: 42px; height: 42px; object-fit: contain; flex: 0 0 auto; filter: drop-shadow(0 2px 1px rgba(31, 19, 0, .42)) drop-shadow(0 0 7px rgba(235, 181, 51, .16)); }
+      .app .brand-name { letter-spacing: -.045em; font-weight: 750; }
+      .app .brand-light { color: #d5ad50; }
+      .app .primary-button, .app .connect-button {
+        color: #2c1c02 !important;
+        border: 1px solid #fff0a5 !important;
+        background: linear-gradient(180deg, #fff9ce 0%, #ffe98a 10%, #f8d04c 27%, #dba629 53%, #b97a0d 78%, #8e5a08 100%) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.96), inset 0 2px 5px rgba(255,255,255,.34), inset 0 -3px 0 rgba(105,65,0,.35), 0 4px 0 #76500d, 0 6px 14px rgba(0,0,0,.24), 0 0 18px rgba(241,190,57,.13) !important;
+        text-shadow: 0 1px 0 rgba(255,255,255,.38);
+        transform: translateY(0);
+        transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+      }
+      .app .primary-button:hover:not(:disabled), .app .connect-button:hover:not(:disabled) {
+        filter: brightness(1.08) saturate(1.08);
+        transform: translateY(-2px);
+        box-shadow: inset 0 1px 0 rgba(255,255,255,1), inset 0 2px 6px rgba(255,255,255,.42), inset 0 -3px 0 rgba(105,65,0,.3), 0 6px 0 #76500d, 0 9px 18px rgba(0,0,0,.27), 0 0 24px rgba(241,190,57,.22) !important;
+      }
+      .app .primary-button:active:not(:disabled), .app .connect-button:active:not(:disabled) {
+        transform: translateY(3px);
+        box-shadow: inset 0 2px 5px rgba(95,58,0,.35), 0 1px 0 #76500d, 0 2px 5px rgba(0,0,0,.2) !important;
+      }
+      .app .primary-button:disabled, .app .connect-button:disabled { opacity: .62; cursor: not-allowed; }
+      .app .secondary-button {
+        color: var(--text, inherit);
+        border: 1px solid rgba(218,174,72,.65) !important;
+        background: linear-gradient(180deg, rgba(255,248,210,.13) 0%, rgba(215,164,45,.09) 45%, rgba(116,77,12,.12) 100%) !important;
+        box-shadow: inset 0 1px 0 rgba(255,255,255,.24), inset 0 -2px 0 rgba(110,76,16,.2), 0 3px 0 rgba(119,83,20,.48), 0 5px 11px rgba(0,0,0,.12) !important;
+        transform: translateY(0);
+        transition: transform .16s ease, filter .16s ease, box-shadow .16s ease;
+      }
+      .app .secondary-button:hover:not(:disabled) { filter: brightness(1.12); transform: translateY(-1px); box-shadow: inset 0 1px 0 rgba(255,255,255,.35), 0 4px 0 rgba(119,83,20,.48), 0 7px 14px rgba(0,0,0,.16) !important; }
+      .app .secondary-button:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 2px 4px rgba(0,0,0,.18), 0 1px 0 rgba(119,83,20,.48) !important; }
+      .app .round-icon { border-color: rgba(226,184,76,.7) !important; box-shadow: inset 0 1px 0 rgba(255,255,255,.3), 0 3px 0 rgba(118,80,13,.55), 0 5px 10px rgba(0,0,0,.14) !important; }
+      .app .brand-button { padding: 0; }
+      @media (max-width: 640px) { .app .brand-coin { width: 35px; height: 35px; } .app .brand { gap: 7px; } }
+      @media (prefers-reduced-motion: reduce) { .app .primary-button, .app .connect-button, .app .secondary-button { transition: none; } }
+    `}</style>
     <div className="ambient ambient-one" /><div className="ambient ambient-two" />
     <header className="topbar">
       <button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMobileNav(!mobileNav)}>{mobileNav ? <X/> : <Menu/>}</button>
@@ -249,11 +291,11 @@ function App() {
 
       <main className="main">
         {page === 'Overview' && <Overview onNavigate={navTo} wallet={wallet} privacy={privacy} setPrivacy={setPrivacy} watchlist={watchlist} toggleWatch={toggleWatch} notify={notify} assets={marketAssets} marketStatus={marketStatus} marketUpdated={marketUpdated} />}
-        {page === 'Swap' && <Swap assets={marketAssets} fromAsset={fromAsset} toAsset={toAsset} setFromAsset={setFromAsset} setToAsset={setToAsset} amount={amount} setAmount={setAmount} wallet={wallet} onConnect={()=>setModal('connect')} onPreview={doSwapPreview} notify={notify} />}
+        {page === 'Swap' && <Swap theme={theme} assets={marketAssets} fromAsset={fromAsset} toAsset={toAsset} setFromAsset={setFromAsset} setToAsset={setToAsset} amount={amount} setAmount={setAmount} wallet={wallet} onConnect={()=>setModal('connect')} onPreview={doSwapPreview} notify={notify} />}
         {page === 'Markets' && <Markets query={query} setQuery={setQuery} assets={filteredAssets} watchlist={watchlist} toggleWatch={toggleWatch} marketStatus={marketStatus} marketUpdated={marketUpdated} onSelect={() => navTo('Token Explorer')} />}
         {page === 'Advanced Trading' && <AdvancedTrading notify={notify}/>}
         {page === 'Limit Orders' && <Unavailable title="Limit orders" eyebrow="ADVANCED TRADING" description="Limit orders require a real execution or monitoring mechanism. No simulated orders will be shown as active." />}
-        {page === 'Cross-Chain' && <CrossChain notify={notify} wallet={wallet} onConnect={()=>setModal('connect')}/>}
+        {page === 'Cross-Chain' && <CrossChain theme={theme} assets={marketAssets} wallet={wallet} onConnect={()=>setModal('connect')} notify={notify}/>}
         {page === 'Portfolio' && <Portfolio privacy={privacy} setPrivacy={setPrivacy} wallet={wallet} assets={marketAssets} onConnect={()=>setModal('connect')}/>}
         {page === 'Earn' && <Unavailable title="Earn, with clarity." eyebrow="EARN" description="Yield products will appear only when a supported protocol, current rate source, fees, lockups, and risk disclosures are configured." />}
         {page === 'Activity' && <ActivityPage wallet={wallet}/>}
@@ -324,6 +366,10 @@ const chainMeta: Record<string,{logo:string;type:'ready'|'soon';native:string;ch
   'BNB Chain':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/binance/info/logo.png',type:'ready',native:'BNB',chainId:56},
   'Avalanche':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/avalanchec/info/logo.png',type:'ready',native:'AVAX',chainId:43114},
   'Solana':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/solana/info/logo.png',type:'ready',native:'SOL',chainId:1151111081099710},
+  'TRON':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/tron/info/logo.png',type:'ready',native:'TRX',chainId:728126428},
+  'Bitcoin':{logo:'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png',type:'ready',native:'BTC',chainId:20000000000001},
+  'Sui':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/sui/info/logo.png',type:'ready',native:'SUI',chainId:9270000000000000},
+  'Stellar':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/stellar/info/logo.png',type:'ready',native:'XLM',chainId:1201081091099710},
   'Linea':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/linea/info/logo.png',type:'ready',native:'ETH',chainId:59144},
   'zkSync Era':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/zksync/info/logo.png',type:'ready',native:'ETH',chainId:324},
   'Scroll':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/scroll/info/logo.png',type:'ready',native:'ETH',chainId:534352},
@@ -332,18 +378,103 @@ const chainMeta: Record<string,{logo:string;type:'ready'|'soon';native:string;ch
   'Mantle':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/mantle/info/logo.png',type:'ready',native:'MNT',chainId:5000},
   'Fantom':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/fantom/info/logo.png',type:'ready',native:'FTM',chainId:250},
   'Cronos':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/cronos/info/logo.png',type:'ready',native:'CRO',chainId:25},
-  'Sui':{logo:'https://raw.githubusercontent.com/trustwallet/assets/master/blockchains/sui/info/logo.png',type:'soon',native:'SUI'},
-  'Bitcoin':{logo:'https://coin-images.coingecko.com/coins/images/1/large/bitcoin.png',type:'soon',native:'BTC'},
   'TON':{logo:'https://coin-images.coingecko.com/coins/images/17980/large/ton_symbol.png',type:'soon',native:'TON'}
 }
 function ChainPicker({value,onChange,label}:{value:string;onChange:(v:string)=>void;label:string}) {
  const [open,setOpen]=useState(false); const [query,setQuery]=useState('')
  const options=Object.keys(chainMeta).filter(n=>n.toLowerCase().includes(query.toLowerCase()))
  const meta=chainMeta[value] || chainMeta.Ethereum
- return <div className="chain-picker-wrap"><span className="chain-picker-label">{label}</span><button type="button" className={`chain-picker-trigger ${open?'is-open':''}`} aria-expanded={open} onClick={()=>{setOpen(!open);setQuery('')}}><img src={meta.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span className="chain-picker-current"><strong>{value}</strong><small>{meta.type==='ready'?'Network selectable':'Coming soon'}</small></span><ChevronDown size={16}/></button>{open&&<><button className="picker-scrim" aria-label="Close network selector" onClick={()=>setOpen(false)}/><div className="chain-picker-menu"><div className="chain-menu-title">Choose network <button type="button" className="icon-button" onClick={()=>setOpen(false)}><X size={15}/></button></div><div className="chain-menu-search"><Search size={15}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search networks"/></div><div className="chain-menu-list">{options.map(name=>{const item=chainMeta[name];return <button type="button" key={name} disabled={item.type==='soon'} className={`chain-menu-option ${name===value?'selected':''} ${item.type==='soon'?'coming-soon':''}`} onClick={()=>{if(item.type==='ready'){onChange(name);setOpen(false)}}}><img src={item.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span><strong>{name}</strong><small>{item.type==='ready'?`Native asset · ${item.native}`:'Coming soon'}</small></span>{item.type==='soon'?<em>Coming soon</em>:name===value?<Check size={16}/>:null}</button>})}</div></div></>}</div>
+ return <div className="chain-picker-wrap"><span className="chain-picker-label">{label}</span><button type="button" className={`chain-picker-trigger ${open?'is-open':''}`} aria-expanded={open} onClick={()=>{setOpen(!open);setQuery('')}}><img src={meta.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span className="chain-picker-current"><strong>{value}</strong><small>{meta.type!=='ready'?'Coming soon':isEvmChainId(meta.chainId ?? 0)?'EVM network':'Multi-wallet route'}</small></span><ChevronDown size={16}/></button>{open&&<><button className="picker-scrim" aria-label="Close network selector" onClick={()=>setOpen(false)}/><div className="chain-picker-menu"><div className="chain-menu-title">Choose network <button type="button" className="icon-button" onClick={()=>setOpen(false)}><X size={15}/></button></div><div className="chain-menu-search"><Search size={15}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search networks"/></div><div className="chain-menu-list">{options.map(name=>{const item=chainMeta[name];return <button type="button" key={name} disabled={item.type==='soon'} className={`chain-menu-option ${name===value?'selected':''} ${item.type==='soon'?'coming-soon':''}`} onClick={()=>{if(item.type==='ready'){onChange(name);setOpen(false)}}}><img src={item.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span><strong>{name}</strong><small>{item.type==='ready'?`Native asset · ${item.native}`:'Coming soon'}</small></span>{item.type==='soon'?<em>Coming soon</em>:name===value?<Check size={16}/>:null}</button>})}</div></div></>}</div>
 }
 
-function Swap({assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount,wallet,onConnect,onPreview,notify}:{assets:Asset[];fromAsset:string;toAsset:string;setFromAsset:(s:string)=>void;setToAsset:(s:string)=>void;amount:string;setAmount:(s:string)=>void;wallet:string;onConnect:()=>void;onPreview:()=>void;notify:(s:string)=>void}) {
+const sanitizeAmount = (value: string) => {
+  const clean = value.replace(/[^0-9.]/g, '')
+  const [whole = '', ...parts] = clean.split('.')
+  return parts.length ? `${whole}.${parts.join('')}` : whole
+}
+
+function providerTokenToAsset(token: ProviderToken): Asset {
+  const parsedPrice = token.priceUSD == null ? NaN : Number(token.priceUSD)
+  return {
+    symbol: token.symbol.toUpperCase(), name: token.name, color: '#C6A45A', letter: token.symbol.slice(0, 1).toUpperCase(),
+    logo: token.logoURI, id: token.address, address: token.address, decimals: token.decimals, isNative: token.isNative,
+    price: Number.isFinite(parsedPrice) ? formatUsd(parsedPrice) : '—', change: '—', positive: true,
+  }
+}
+
+function fallbackNativeAsset(symbol: string, chainName: string, assets: Asset[]): Asset {
+  const known = assets.find(a => a.symbol.toUpperCase() === symbol.toUpperCase()) ?? seedAssets.find(a => a.symbol.toUpperCase() === symbol.toUpperCase())
+  if (known) return known
+  const chain = chainMeta[chainName]
+  const names: Record<string, string> = { TRX: 'TRON', BTC: 'Bitcoin', SUI: 'Sui', XLM: 'Stellar', TON: 'Toncoin', SOL: 'Solana' }
+  const colors: Record<string, string> = { TRX: '#E84142', BTC: '#F7931A', SUI: '#6FBCF0', XLM: '#7B68EE', TON: '#0098EA', SOL: '#9945FF' }
+  return { symbol: symbol.toUpperCase(), name: names[symbol.toUpperCase()] ?? chainName, color: colors[symbol.toUpperCase()] ?? '#C6A45A', letter: symbol.slice(0, 1).toUpperCase(), logo: chain?.logo, id: `native-${chainName.toLowerCase().replace(/\s+/g, '-')}`, price: '—', change: '—', positive: true, isNative: true }
+}
+
+function resolveProviderToken(tokens: ProviderToken[], symbol: string, selectedAddress?: string): ProviderToken {
+  const exactAddress = selectedAddress ? tokens.find(t => t.address === selectedAddress || (isEvmChainId(t.chainId) && t.address.toLowerCase() === selectedAddress.toLowerCase())) : undefined
+  if (exactAddress) return exactAddress
+  const matches = tokens.filter(t => t.symbol.toUpperCase() === symbol.toUpperCase())
+  if (!matches.length) throw new Error(`The provider token list does not contain ${symbol} on this network. Choose another token.`)
+  if (symbol.toUpperCase() === matches[0].symbol.toUpperCase()) {
+    const native = matches.find(t => t.isNative || t.address === '0x0000000000000000000000000000000000000000')
+    if (native) return native
+  }
+  return matches.find(t => !t.isNative && Boolean(t.logoURI) && Boolean(t.priceUSD))
+    ?? matches.find(t => !t.isNative && Boolean(t.logoURI))
+    ?? matches[0]
+}
+
+function providerForTransactions(): Eip1193Provider | undefined {
+  return (window as Window & { ethereum?: Eip1193Provider }).ethereum
+}
+
+function usdValue(value?: string | number | null) {
+  if (value == null || value === '') return '—'
+  const n = Number(value)
+  return Number.isFinite(n) ? formatUsd(n) : '—'
+}
+
+function QuoteReview({ quote, fromToken, toToken, fromChainName, toChainName, quotedAt, status, executing, onRefresh, onExecute }: {
+  quote: LifiQuote; fromToken: ProviderToken; toToken: ProviderToken; fromChainName: string; toChainName: string; quotedAt: number; status: string; executing: boolean; onRefresh: () => void; onExecute: () => void
+}) {
+  const received = formatUnitsSafe(quote.estimate.toAmount, toToken.decimals)
+  const minimum = formatUnitsSafe(quote.estimate.toAmountMin ?? quote.estimate.toAmount, toToken.decimals)
+  const [now, setNow] = useState(Date.now())
+  useEffect(() => { const timer = window.setInterval(() => setNow(Date.now()), 1000); return () => window.clearInterval(timer) }, [])
+  const feeCosts = quote.estimate.feeCosts ?? []
+  const gasCosts = quote.estimate.gasCosts ?? []
+  const feeKnown = feeCosts.some(f => f.amountUSD != null)
+  const gasKnown = gasCosts.some(f => f.amountUSD != null)
+  const feeUSD = feeKnown ? usdValue(feeCosts.reduce((sum, f) => sum + Number(f.amountUSD ?? 0), 0)) : '—'
+  const gasUSD = gasKnown ? usdValue(gasCosts.reduce((sum, f) => sum + Number(f.amountUSD ?? 0), 0)) : '—'
+  const impact = (quote.estimate as any).priceImpact
+  const impactLabel = impact == null ? 'Not returned' : `${(Number(impact) * (Math.abs(Number(impact)) <= 1 ? 100 : 1)).toFixed(2)}%`
+  const duration = quote.estimate.executionDuration == null ? 'Not returned' : quote.estimate.executionDuration < 60 ? `${Math.ceil(quote.estimate.executionDuration)} sec` : `${Math.ceil(quote.estimate.executionDuration / 60)} min`
+  const remaining = Math.max(0, 45 - Math.floor((now - quotedAt) / 1000))
+  return <section className="route-quote-card" aria-live="polite">
+    <div className="route-quote-head"><div><span className="route-quote-kicker"><Check size={13}/> LIVE ROUTE FOUND</span><strong>Review your quote</strong></div><button className="secondary-button quote-refresh" onClick={onRefresh} disabled={executing}><Activity size={14}/> Refresh</button></div>
+    <div className="route-estimate-highlight"><div><span>Estimated receive</span><strong>{received}</strong></div><div className="route-estimate-token"><AssetIcon asset={providerTokenToAsset(toToken)} size="sm"/><strong>{toToken.symbol}</strong></div><small>{toToken.priceUSD ? `Approx. ${usdValue(Number(received.replace(/,/g, '')) * Number(toToken.priceUSD))}` : 'Provider estimate · final amount may vary'}</small></div>
+    <div className="route-provider-line"><span className="route-provider-logo">{quote.toolDetails?.logoURI ? <img src={quote.toolDetails.logoURI} alt="" /> : <ArrowDownUp size={15}/>}</span><div><strong>{quote.toolDetails?.name || quote.tool || 'LI.FI route'}</strong><small>{fromToken.symbol} on {fromChainName} <ArrowRight size={10}/> {toChainName}</small></div><span className="pill neutral">Provider quote</span></div>
+    <div className="route-metric-grid">
+      <div><span>Minimum received</span><strong>{minimum} {toToken.symbol}</strong></div>
+      <div><span>Network gas</span><strong>{gasUSD}</strong></div>
+      <div><span>Provider fees</span><strong>{feeUSD}</strong></div>
+      <div><span>Price impact</span><strong>{impactLabel}</strong></div>
+      <div><span>Estimated time</span><strong>{duration}</strong></div>
+      <div><span>Quote age</span><strong>{remaining > 0 ? `${remaining}s left` : 'Refresh required'}</strong></div>
+    </div>
+    <div className="route-quote-note"><ShieldCheck size={14}/><span>Check the source network, destination, token, minimum receive and fees in your wallet before approving. Token approval, when needed, is exact-amount only.</span></div>
+    {status && <div className="route-execution-status"><span className="status-indicator"/>{status}</div>}
+    <button className="primary-button full route-execute-button" disabled={executing || remaining <= 0} onClick={onExecute}>{executing ? 'Waiting for wallet / confirmation…' : remaining <= 0 ? 'Quote expired · refresh to continue' : 'Confirm in wallet'} <ArrowRight size={15}/></button>
+  </section>
+}
+
+function RouteError({ message }: { message: string }) {
+  return message ? <div className="route-error" role="alert"><ShieldCheck size={15}/><span>{message}</span></div> : null
+}
+
+function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount,wallet,onConnect,onPreview,notify}:{theme:'dark'|'light';assets:Asset[];fromAsset:string;toAsset:string;setFromAsset:(s:string)=>void;setToAsset:(s:string)=>void;amount:string;setAmount:(s:string)=>void;wallet:string;onConnect:()=>void;onPreview:()=>void;notify:(s:string)=>void}) {
   const [advanced,setAdvanced] = useState(false)
   const [slippage,setSlippage] = useState('0.50')
   const [assetSelect,setAssetSelect] = useState<'from'|'to'|null>(null)
@@ -352,62 +483,136 @@ function Swap({assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,setAmount
   const [tokenQuery,setTokenQuery] = useState('')
   const [chainTokenList,setChainTokenList] = useState<Record<string,Asset[]>>({})
   const [tokenListLoading,setTokenListLoading] = useState(false)
+  const [fromTokenAddress,setFromTokenAddress] = useState('')
+  const [toTokenAddress,setToTokenAddress] = useState('')
+  const [toAddress,setToAddress] = useState('')
+  const [quote,setQuote] = useState<LifiQuote|null>(null)
+  const [quoteTokens,setQuoteTokens] = useState<{from:ProviderToken;to:ProviderToken}|null>(null)
+  const [quotedAt,setQuotedAt] = useState(0)
+  const [quoteLoading,setQuoteLoading] = useState(false)
+  const [quoteError,setQuoteError] = useState('')
+  const [executing,setExecuting] = useState(false)
+  const [executionStatus,setExecutionStatus] = useState('')
+  const [multiWalletOpen,setMultiWalletOpen] = useState(false)
+  const [multiWalletTokens,setMultiWalletTokens] = useState<{from?:string;to?:string}>({})
   const chainTokens: Record<string,string[]> = {
     'Ethereum':['ETH','USDC','USDT','WBTC','LINK','UNI'], 'Arbitrum':['ETH','USDC','USDT','ARB','LINK'],
     'Base':['ETH','USDC','AERO'], 'Optimism':['ETH','USDC','OP'], 'Polygon':['POL','USDC','USDT','LINK'],
-    'BNB Chain':['BNB','USDT','CAKE'], 'Avalanche':['AVAX','USDC','USDT','LINK'], 'Solana':['SOL','USDC','USDT','JUP']
+    'BNB Chain':['BNB','USDT','CAKE'], 'Avalanche':['AVAX','USDC','USDT','LINK']
   }
   const selectedChain = assetSelect === 'from' ? fromChain : toChain
+  const fromChainId = chainMeta[fromChain]?.chainId ?? 1
+  const toChainId = chainMeta[toChain]?.chainId ?? 1
+  const multiEcosystemSource = !isEvmChainId(fromChainId)
+
   useEffect(() => {
     if (!assetSelect) return
-    const meta = chainMeta[selectedChain]
-    if (!meta?.chainId) return
-    if (chainTokenList[selectedChain]?.length) return
+    const cid = EVM_CHAINS[selectedChain]?.id ?? chainMeta[selectedChain]?.chainId
+    if (!cid || chainTokenList[selectedChain]?.length) return
     let cancelled = false
     setTokenListLoading(true)
-    fetch(`https://li.quest/v1/tokens?chains=${meta.chainId}`)
-      .then(r => { if (!r.ok) throw new Error('Token list unavailable'); return r.json() })
-      .then(data => {
-        const raw = data?.tokens?.[String(meta.chainId)]
-        if (!Array.isArray(raw)) throw new Error('Unexpected token-list response')
-        const mapped: Asset[] = raw.filter((t:any) => t?.symbol && t?.name && t?.address).map((t:any) => ({
-          symbol:String(t.symbol).toUpperCase(), name:String(t.name), color:'#C6A45A', letter:String(t.symbol).slice(0,1).toUpperCase(),
-          logo:typeof t.logoURI==='string'?t.logoURI:undefined, id:String(t.address), price: t.priceUSD ? formatUsd(Number(t.priceUSD)) : '—',
-          change:'—', positive:true
-        }))
-        if (!cancelled) setChainTokenList(prev => ({...prev,[selectedChain]:mapped}))
-      })
-      .catch(() => { /* keep only known fallback assets for this network */ })
+    fetchLifiTokens(cid)
+      .then(tokens => { if (!cancelled) setChainTokenList(prev => ({...prev,[selectedChain]:tokens.map(providerTokenToAsset)})) })
+      .catch(() => { /* keep known fallback tokens in the selector */ })
       .finally(() => { if (!cancelled) setTokenListLoading(false) })
     return () => { cancelled = true }
   }, [assetSelect, selectedChain, chainTokenList])
+
+  useEffect(() => {
+    setQuote(null); setQuoteTokens(null); setQuotedAt(0); setQuoteError(''); setExecutionStatus('')
+  }, [amount, fromAsset, toAsset, fromChain, toChain, slippage, fromTokenAddress, toTokenAddress, toAddress])
+
   const tokenList = (chainTokenList[selectedChain]?.length ? chainTokenList[selectedChain] : assets.filter(a => chainTokens[selectedChain]?.includes(a.symbol)))
     .filter(a => a.symbol !== 'PIO' && `${a.name} ${a.symbol}`.toLowerCase().includes(tokenQuery.toLowerCase()))
-  const from=assets.find(a=>a.symbol===fromAsset) ?? seedAssets[0], to=assets.find(a=>a.symbol===toAsset) ?? seedAssets[1]
+  const from = chainTokenList[fromChain]?.find(a=>a.symbol===fromAsset && (!fromTokenAddress || a.address===fromTokenAddress)) ?? assets.find(a=>a.symbol===fromAsset) ?? fallbackNativeAsset(fromAsset, fromChain, assets)
+  const to = chainTokenList[toChain]?.find(a=>a.symbol===toAsset && (!toTokenAddress || a.address===toTokenAddress)) ?? assets.find(a=>a.symbol===toAsset) ?? fallbackNativeAsset(toAsset, toChain, assets)
   const sameChain = fromChain === toChain
   const supportedToken = (chain:string,symbol:string) => Boolean(chainTokens[chain]?.includes(symbol))
   const chooseChain = (side:'from'|'to', chain:string) => {
-    if(side==='from'){setFromChain(chain); if(!supportedToken(chain,fromAsset)) setFromAsset((chainTokens[chain]||['ETH'])[0])}
-    else {setToChain(chain); if(!supportedToken(chain,toAsset)) setToAsset((chainTokens[chain]||['ETH'])[0])}
+    if(side==='from') {
+      setFromChain(chain); setFromTokenAddress('')
+      if (!isEvmChainId(chainMeta[chain]?.chainId ?? 0)) setFromAsset(chainMeta[chain]?.native ?? 'ETH')
+      else if(!supportedToken(chain,fromAsset)) setFromAsset((chainTokens[chain]||[chainMeta[chain]?.native||'ETH'])[0])
+    } else {
+      setToChain(chain); setToTokenAddress('')
+      if (!isEvmChainId(chainMeta[chain]?.chainId ?? 0)) setToAsset(chainMeta[chain]?.native ?? 'USDC')
+      else if(!supportedToken(chain,toAsset)) setToAsset((chainTokens[chain]||[chainMeta[chain]?.native||'USDC'])[0])
+    }
   }
-  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / SWAP" title="Swap, with clarity." description="Choose a network first, then search its provider-listed token catalogue. Routes are only shown when a live quote provider is connected."/>
+  async function findQuote() {
+    setQuoteError(''); setExecutionStatus(''); setQuote(null); setQuoteTokens(null)
+    if (multiEcosystemSource) {
+      try {
+        if (!amount || Number(amount) <= 0) throw new Error('Enter an amount greater than zero first.')
+        if (fromAsset === 'PIO' || toAsset === 'PIO') throw new Error('PIO trading is paused until its official chain and token contract are verified.')
+        const [fromList, toList] = await Promise.all([fetchLifiTokens(fromChainId), fetchLifiTokens(toChainId)])
+        const f = resolveProviderToken(fromList, fromAsset, fromTokenAddress || undefined)
+        const t = resolveProviderToken(toList, toAsset, toTokenAddress || undefined)
+        setMultiWalletTokens({ from:f.address, to:t.address }); setMultiWalletOpen(true)
+      } catch (e) { setQuoteError(e instanceof Error ? e.message : 'Could not prepare this route. Try another token or network.') }
+      return
+    }
+    if (!wallet) { onConnect(); return }
+    if (!amount || Number(amount) <= 0) { setQuoteError('Enter an amount greater than zero.'); return }
+    if (fromAsset === 'PIO' || toAsset === 'PIO') { setQuoteError('PIO trading is paused until its official chain, token contract address and decimals are verified. Select a provider-listed token for a live quote.'); return }
+    const srcId = EVM_CHAINS[fromChain]?.id
+    const dstId = chainMeta[toChain]?.chainId
+    if (!srcId || !dstId) { setQuoteError('This network is not available in the route provider.'); return }
+    if (!isEvmChainId(srcId)) { setMultiWalletOpen(true); return }
+    const provider = providerForTransactions()
+    if (!provider) { setQuoteError('No injected EVM wallet detected. Install or unlock MetaMask, then connect it.'); return }
+    setQuoteLoading(true)
+    try {
+      const [fromList, toList] = await Promise.all([fetchLifiTokens(srcId), fetchLifiTokens(dstId)])
+      const fromToken = resolveProviderToken(fromList, fromAsset, fromTokenAddress || undefined)
+      const toToken = resolveProviderToken(toList, toAsset, toTokenAddress || undefined)
+      const rawAmount = parseUnitsSafe(amount, fromToken.decimals).toString()
+      const targetAddress = toAddress.trim() || (isEvmChainId(dstId) ? wallet : '')
+      if (!isEvmChainId(dstId) && !targetAddress) throw new Error(`Enter a destination ${toChain} wallet address before requesting a quote.`)
+      const result = await getLifiQuote({ fromChainId:srcId, toChainId:dstId, fromToken, toToken, fromAmount:rawAmount, fromAddress:wallet, toAddress:targetAddress || wallet, slippage:Number(slippage)/100 })
+      setQuote(result); setQuoteTokens({from:fromToken,to:toToken}); setQuotedAt(Date.now())
+    } catch (e) { setQuoteError(e instanceof Error ? e.message : 'Could not fetch a live LI.FI quote. Try another token, network, or amount.') }
+    finally { setQuoteLoading(false) }
+  }
+  async function executeQuote() {
+    if (!quote || !quoteTokens) return
+    const provider = providerForTransactions()
+    if (!provider) { setQuoteError('No injected EVM wallet is available. Reconnect and request a fresh quote.'); return }
+    if (!wallet) { onConnect(); return }
+    setExecuting(true); setQuoteError(''); setExecutionStatus('Preparing transaction…')
+    try {
+      const result = await executeLifiQuote({ provider, wallet, quote, quotedAt, fromSymbol:quoteTokens.from.symbol, toSymbol:quoteTokens.to.symbol, amount, onStatus:setExecutionStatus })
+      setExecutionStatus(`${result.status} · ${result.txHash}`)
+      notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
+    } catch (e) {
+      const message = e instanceof Error ? e.message : 'Transaction could not be completed.'
+      setQuoteError(message); setExecutionStatus('')
+    } finally { setExecuting(false) }
+  }
+
+  // Keep the original PioSwap route form for EVM-source flows. When the source is a non-EVM
+  // ecosystem, route execution moves to LI.FI's compatible wallet panel inside the same page.
+  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / SWAP" title="Swap, with clarity." description="Select networks and tokens, inspect the live quote and fees, then confirm the transaction in your wallet."/>
     <div className="swap-layout"><div className="swap-main panel swap-luxury-card">
       <div className="chain-pair-selectors"><ChainPicker label="PAY ON" value={fromChain} onChange={c=>chooseChain('from',c)}/><ChainPicker label="RECEIVE ON" value={toChain} onChange={c=>chooseChain('to',c)}/></div>
-      <div className="swap-card-head"><div className="eyebrow">YOU PAY · {fromChain.toUpperCase()}</div><span className="muted-text">Wallet balance not indexed</span></div>
-      <div className="amount-row"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00" inputMode="decimal" aria-label="Amount to pay"/><button className="token-select" onClick={()=>{setAssetSelect('from');setTokenQuery('')}}><AssetIcon asset={from} size="sm"/>{from.symbol}<ChevronDown size={15}/></button></div>
-      <div className="amount-foot"><span>USD estimate requires a verified quote</span><button onClick={()=>notify(wallet?'Wallet balance lookup is not integrated yet.':'Connect a wallet to inspect balance.')}>MAX</button></div>
-      <div className="swap-direction"><button className="round-icon" onClick={()=>{setFromAsset(toAsset);setToAsset(fromAsset);setFromChain(toChain);setToChain(fromChain)}} aria-label="Reverse assets and networks"><ArrowDownUp size={17}/></button></div>
-      <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE · {toChain.toUpperCase()}</div><span className="muted-text">No live quote</span></div>
-      <div className="amount-row"><div className="output-amount">—</div><button className="token-select" onClick={()=>{setAssetSelect('to');setTokenQuery('')}}><AssetIcon asset={to} size="sm"/>{to.symbol}<ChevronDown size={15}/></button></div>
-      <div className="amount-foot"><span>Output appears only after a provider returns a quote</span></div>
-      {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'pay':'receive'} token · {assetSelect==='from'?fromChain:toChain}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><div className="token-picker-meta">{chainTokenList[selectedChain]?.length ? `${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens` : 'Known tokens only until the live list loads'}</div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search tokens by name or symbol"/>{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading verified network token list…</div>:tokenList.length?tokenList.map(a=><button key={`${assetSelect}-${a.symbol}`} className="picker-row" onClick={()=>{assetSelect==='from'?setFromAsset(a.symbol):setToAsset(a.symbol);setAssetSelect(null)}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No verified token list for this network yet.</div>}</div>}
-      <div className="quote-summary"><div><span>Route</span><strong>{sameChain?'Same-chain route':'Cross-chain route required'}</strong></div><div><span>Network fee</span><strong>Unavailable</strong></div><div><span>Price impact</span><strong>Unavailable</strong></div><div><span>Quote status</span><strong>Provider not connected</strong></div></div>
-      {!sameChain&&<div className="inline-warning"><ShieldCheck size={15}/> You selected different networks. Use Cross-Chain to check bridge availability; no bridge quote is currently available.</div>}
+      <div className="swap-card-head"><div className="eyebrow">YOU PAY · {fromChain.toUpperCase()}</div><span className="muted-text">{wallet?`Wallet ${fmtAddress(wallet)}`:'Connect your wallet to see balances'}</span></div>
+      <div className="amount-row"><input value={amount} onChange={e=>setAmount(sanitizeAmount(e.target.value))} placeholder="0.00" inputMode="decimal" aria-label="Amount to pay"/><button className="token-select" onClick={()=>{setAssetSelect('from');setTokenQuery('')}}><AssetIcon asset={from} size="sm"/>{from.symbol}<ChevronDown size={15}/></button></div>
+      <div className="amount-foot"><span>{from.price !== '—' ? `Market price ${from.price}` : 'USD estimate shown by the quote provider'}</span><button type="button" onClick={()=>{if(!wallet){onConnect();return}notify('Balance-aware MAX amount is not yet indexed for this token.')}}>MAX</button></div>
+      <div className="swap-direction"><button className="round-icon" onClick={()=>{setFromAsset(toAsset);setToAsset(fromAsset);setFromChain(toChain);setToChain(fromChain);setFromTokenAddress(toTokenAddress);setToTokenAddress(fromTokenAddress)}} aria-label="Reverse assets and networks"><ArrowDownUp size={17}/></button></div>
+      <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE · {toChain.toUpperCase()}</div><span className="muted-text">{quote ? 'Quote from LI.FI' : 'Estimated output'}</span></div>
+      <div className="amount-row"><div className="output-amount">{quote && quoteTokens ? formatUnitsSafe(quote.estimate.toAmount, quoteTokens.to.decimals) : '—'}</div><button className="token-select" onClick={()=>{setAssetSelect('to');setTokenQuery('')}}><AssetIcon asset={to} size="sm"/>{to.symbol}<ChevronDown size={15}/></button></div>
+      <div className="amount-foot"><span>{quote && quoteTokens ? `Minimum received ${formatUnitsSafe(quote.estimate.toAmountMin ?? quote.estimate.toAmount, quoteTokens.to.decimals)} ${quoteTokens.to.symbol}` : 'A route quote will estimate the amount after fees'}</span><span>{quote && quoteTokens ? usdValue(quote.estimate.toAmountUSD) : ''}</span></div>
+      {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'pay':'receive'} token · {assetSelect==='from'?fromChain:toChain}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><div className="token-picker-meta">{chainTokenList[selectedChain]?.length ? `${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens` : 'Loading the provider-listed token catalogue'}</div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search tokens by name or symbol"/>{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading verified network token list…</div>:tokenList.length?tokenList.slice(0,80).map(a=><button key={`${assetSelect}-${a.address||a.id||a.symbol}`} className="picker-row" onClick={()=>{if(assetSelect==='from'){setFromAsset(a.symbol);setFromTokenAddress(a.address||'')}else{setToAsset(a.symbol);setToTokenAddress(a.address||'')}setAssetSelect(null);setTokenQuery('')}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}{a.address?` · ${a.address.slice(0,6)}…${a.address.slice(-4)}`:''}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No provider-listed tokens matched. Check the network or search another symbol.</div>}</div>}
+      {!isEvmChainId(toChainId)&&<div className="recipient-address-field"><label>DESTINATION WALLET ADDRESS · {toChain.toUpperCase()}</label><input className="text-input" value={toAddress} onChange={e=>setToAddress(e.target.value)} placeholder={`Paste a ${toChain} receive address`}/><small>Required for a destination on a different wallet ecosystem. Confirm the address in your destination wallet before continuing.</small></div>}
+      <div className="quote-summary"><div><span>Route</span><strong>{sameChain?'Same-chain swap':'Cross-chain route'}</strong></div><div><span>Network fee</span><strong>{quote?usdValue((quote.estimate.gasCosts||[]).reduce((sum,c)=>sum+Number(c.amountUSD||0),0)):'Shown in quote'}</strong></div><div><span>Slippage</span><strong>{slippage}%</strong></div><div><span>Provider</span><strong>{quote?.toolDetails?.name||'LI.FI'}</strong></div></div>
       <button className="disclosure-row" onClick={()=>setAdvanced(!advanced)}><span><Settings2 size={15}/> Advanced settings</span><ChevronDown size={15} className={advanced?'rotated':''}/></button>
-      {advanced&&<div className="advanced-settings"><label>Slippage tolerance</label><div className="slippage-options">{['0.10','0.50','1.00'].map(s=><button key={s} className={slippage===s?'selected':''} onClick={()=>setSlippage(s)}>{s}%</button>)}</div><p>Preference only. Execution remains disabled until a provider supplies a validated quote and transaction data.</p></div>}
-      <button className="primary-button full swap-cta" onClick={()=>{if(!wallet){onConnect();return} if(!amount||Number(amount)<=0){notify('Enter an amount greater than zero.');return} if(fromAsset===toAsset&&fromChain===toChain){notify('Choose different assets to swap.');return} notify('No live route provider is connected. Nothing was submitted.')}}>{wallet?'Check live route':'Connect wallet to continue'} <ArrowRight size={16}/></button>
-      <div className="safe-note"><ShieldCheck size={15}/> No transaction is submitted without a verified provider quote.</div>
-    </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Before a swap can execute</strong></div><p>A live router must return a quote and transaction payload. PioSwap will validate chain, token addresses, recipient, approvals, fees and quote expiry before wallet handoff.</p><ul><li><Check size={14}/> Network and token selection</li><li><Check size={14}/> Itemized fees</li><li><Check size={14}/> Quote freshness</li><li><Check size={14}/> Wallet confirmation</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO token details have not been supplied. It is intentionally excluded from selectable trade assets.</p><span className="pill warning">Not tradable yet</span></div></aside></div>
+      {advanced&&<div className="advanced-settings"><label>Slippage tolerance</label><div className="slippage-options">{['0.10','0.30','0.50','1.00','2.00'].map(x=><button key={x} className={slippage===x?'selected':''} onClick={()=>setSlippage(x)}>{x}%</button>)}</div><p>Changing slippage invalidates the previous quote. A fresh provider quote is required before wallet confirmation.</p></div>}
+      <RouteError message={quoteError}/>
+      {multiWalletOpen&&<div className="multi-ecosystem-panel panel"><div className="multi-ecosystem-top"><div><div className="eyebrow">MULTI-WALLET ROUTE</div><h3>Connect the wallet for {fromChain}.</h3><p>This route starts on a non-EVM network, so its own wallet must sign. The amount and token selections above stay in your original PioSwap form.</p></div><button className="secondary-button" onClick={()=>setMultiWalletOpen(false)}>Close route panel</button></div><LifiTradeWidget appearance={theme} mode={sameChain?'swap':'bridge'} fromChainId={fromChainId} toChainId={toChainId} fromToken={multiWalletTokens.from} toToken={multiWalletTokens.to} fromAmount={amount}/></div>}
+      <button className="primary-button full swap-cta" disabled={quoteLoading||executing} onClick={()=>void findQuote()}>{quoteLoading?'Finding the best route…':quote?'Refresh quote':'Find best route'} <ArrowRight size={16}/></button>
+      {quote&&quoteTokens&&<QuoteReview quote={quote} fromToken={quoteTokens.from} toToken={quoteTokens.to} fromChainName={fromChain} toChainName={toChain} quotedAt={quotedAt} status={executionStatus} executing={executing} onRefresh={()=>void findQuote()} onExecute={()=>void executeQuote()}/>}
+      <div className="safe-note"><ShieldCheck size={15}/> No transaction is submitted until you review and confirm it in the connected wallet.</div>
+    </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Before you sign</strong></div><p>Quotes show the provider's live estimate. Compare minimum receive, fees, slippage and the destination address. Network switching may require a fresh quote.</p><ul><li><Check size={14}/> Live route quote</li><li><Check size={14}/> Token address match</li><li><Check size={14}/> Exact-amount approval where needed</li><li><Check size={14}/> On-chain receipt and bridge status</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO token details have not been supplied. The token remains non-tradable until its official chain and contract are verified.</p><span className="pill warning">Not tradable yet</span></div></aside></div>
   </div>
 }
 
@@ -421,10 +626,126 @@ function AdvancedTrading({notify}:{notify:(s:string)=>void}) {
   const [pair,setPair]=useState('ETH / USDC')
   return <div className="page-content"><PageHeader eyebrow="TRADE / ADVANCED" title="The details, in view." description="A professional layout for charting and order-book data, with honest availability states." right={<button className="secondary-button" onClick={()=>notify('Live exchange feed is not configured.')}><Activity size={15}/> Feed status</button>}/><div className="trading-grid"><div className="panel chart-panel"><div className="chart-toolbar"><button className="pair-select" onClick={()=>setPair(pair==='ETH / USDC'?'BTC / USDC':'ETH / USDC')}>{pair}<ChevronDown size={14}/></button><div className="chart-times">{['1m','5m','15m','1H','4H','1D'].map(t=><button key={t} onClick={()=>notify('Historical candles are unavailable until a data provider is connected.')}>{t}</button>)}</div></div><div className="chart-placeholder"><div className="chart-watermark">{pair.split(' / ')[0]}</div><LineChart size={42} strokeWidth={1}/><strong>Chart data unavailable</strong><span>Connect a market-data provider to display real candles.</span></div><div className="chart-footer"><span>Source: not connected</span><span>Last update: —</span></div></div><div className="panel orderbook-panel"><div className="orderbook-head"><h3>Order book</h3><span className="pill neutral">No feed</span></div><div className="orderbook-columns"><span>Price (USDC)</span><span>Amount</span><span>Total</span></div><div className="book-empty"><div className="book-line red"/><div className="book-line red short"/><div className="book-line red medium"/><div className="book-mid">Spread unavailable</div><div className="book-line green medium"/><div className="book-line green short"/><div className="book-line green"/></div><div className="data-note">No order book data is being fabricated.</div></div></div><div className="panel order-entry"><div className="order-tabs"><button className={side==='Buy'?'buy-active':''} onClick={()=>setSide('Buy')}>Buy</button><button className={side==='Sell'?'sell-active':''} onClick={()=>setSide('Sell')}>Sell</button></div><label>Order type</label><div className="input-static">Market <ChevronDown size={15}/></div><label>Price</label><div className="input-static">Market price unavailable</div><label>Amount</label><input className="text-input" placeholder="0.00" inputMode="decimal"/><div className="quote-summary"><div><span>Available balance</span><strong>—</strong></div><div><span>Estimated fee</span><strong>—</strong></div></div><button className={`primary-button full ${side==='Sell'?'sell-button':''}`} onClick={()=>notify('Order placement is disabled until a verified execution provider is integrated.')}>{side} {pair.split(' / ')[0]}</button></div></div>
 }
-function CrossChain({notify,wallet,onConnect}:{notify:(s:string)=>void;wallet:string;onConnect:()=>void}) {
-  const [from,setFrom]=useState('Ethereum');const [to,setTo]=useState('Solana');const [asset,setAsset]=useState('USDC');const [amount,setAmount]=useState('')
-  return <div className="page-content narrow-page"><PageHeader eyebrow="TRADE / CROSS-CHAIN" title="One flow. Two chains." description="Compare a source and destination before committing to a route."/><div className="panel bridge-panel"><div className="chain-label">FROM NETWORK</div><ChainPicker label="FROM NETWORK" value={from} onChange={setFrom}/><label>Token and amount</label><div className="amount-row bridge-amount"><input value={amount} onChange={e=>setAmount(e.target.value.replace(/[^0-9.]/g,''))} placeholder="0.00"/><select value={asset} onChange={e=>setAsset(e.target.value)}><option>USDC</option><option>ETH</option><option>USDT</option></select></div><div className="bridge-switch"><button className="round-icon" onClick={()=>{setFrom(to);setTo(from)}}><ArrowDownUp size={16}/></button></div><div className="chain-label">TO NETWORK</div><ChainPicker label="TO NETWORK" value={to} onChange={setTo}/><div className="bridge-disclosure"><div><span>Route provider</span><strong>Provider integration pending</strong></div><div><span>Estimated receive</span><strong>—</strong></div><div><span>Network and provider fees</span><strong>—</strong></div><div><span>Destination confirmation</span><strong>Unavailable</strong></div></div><button className="primary-button full" onClick={()=>{if(from===to)notify('Choose two different networks.');else if(!wallet)onConnect();else notify('Cross-chain execution is disabled until a supported provider and token configuration are verified.')}}>{wallet?'Check route availability':'Connect wallet'} <ArrowRight size={16}/></button><div className="safe-note"><ShieldCheck size={15}/> No bridge route or completion time is being promised.</div></div></div>
+function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light';assets:Asset[];wallet:string;onConnect:()=>void;notify:(s:string)=>void}) {
+  const [from,setFrom]=useState('Ethereum')
+  const [to,setTo]=useState('Solana')
+  const [fromAsset,setFromAsset]=useState('USDC')
+  const [toAsset,setToAsset]=useState('USDC')
+  const [amount,setAmount]=useState('')
+  const [toAddress,setToAddress]=useState('')
+  const [assetSelect,setAssetSelect]=useState<'from'|'to'|null>(null)
+  const [tokenQuery,setTokenQuery]=useState('')
+  const [chainTokenList,setChainTokenList]=useState<Record<string,Asset[]>>({})
+  const [tokenListLoading,setTokenListLoading]=useState(false)
+  const [fromTokenAddress,setFromTokenAddress]=useState('')
+  const [toTokenAddress,setToTokenAddress]=useState('')
+  const [slippage,setSlippage]=useState('0.50')
+  const [advanced,setAdvanced]=useState(false)
+  const [quote,setQuote]=useState<LifiQuote|null>(null)
+  const [quoteTokens,setQuoteTokens]=useState<{from:ProviderToken;to:ProviderToken}|null>(null)
+  const [quotedAt,setQuotedAt]=useState(0)
+  const [quoteLoading,setQuoteLoading]=useState(false)
+  const [quoteError,setQuoteError]=useState('')
+  const [executing,setExecuting]=useState(false)
+  const [executionStatus,setExecutionStatus]=useState('')
+  const [multiWalletOpen,setMultiWalletOpen]=useState(false)
+  const [multiWalletTokens,setMultiWalletTokens]=useState<{from?:string;to?:string}>({})
+  const fromChainId=chainMeta[from]?.chainId??1
+  const toChainId=chainMeta[to]?.chainId??8453
+  const multiEcosystemSource=!isEvmChainId(fromChainId)
+
+  useEffect(()=>{
+    if(!assetSelect)return
+    const chain=assetSelect==='from'?from:to
+    if(chainTokenList[chain]?.length)return
+    const cid=chainMeta[chain]?.chainId
+    if(!cid)return
+    let cancelled=false
+    setTokenListLoading(true)
+    fetchLifiTokens(cid).then(tokens=>{if(!cancelled)setChainTokenList(prev=>({...prev,[chain]:tokens.map(providerTokenToAsset)}))})
+      .catch(()=>{/* provider fallback text remains visible */})
+      .finally(()=>{if(!cancelled)setTokenListLoading(false)})
+    return()=>{cancelled=true}
+  },[assetSelect,from,to,chainTokenList])
+  useEffect(()=>{setQuote(null);setQuoteTokens(null);setQuotedAt(0);setQuoteError('');setExecutionStatus('')},[from,to,fromAsset,toAsset,amount,toAddress,slippage,fromTokenAddress,toTokenAddress])
+
+  const selectedChain=assetSelect==='from'?from:to
+  const tokenList=(chainTokenList[selectedChain]?.length?chainTokenList[selectedChain]:assets.filter(a=>['ETH','USDC','USDT','SOL','TRX','BTC','SUI','XLM'].includes(a.symbol)))
+    .filter(a=>a.symbol!=='PIO'&&`${a.name} ${a.symbol}`.toLowerCase().includes(tokenQuery.toLowerCase()))
+  const sourceToken=chainTokenList[from]?.find(a=>a.symbol===fromAsset&&(!fromTokenAddress||a.address===fromTokenAddress))??assets.find(a=>a.symbol===fromAsset)??fallbackNativeAsset(fromAsset,from,assets)
+  const destinationToken=chainTokenList[to]?.find(a=>a.symbol===toAsset&&(!toTokenAddress||a.address===toTokenAddress))??assets.find(a=>a.symbol===toAsset)??fallbackNativeAsset(toAsset,to,assets)
+  function chooseNetwork(side:'from'|'to',chain:string){
+    if(side==='from'){
+      setFrom(chain);setFromTokenAddress('');if(!isEvmChainId(chainMeta[chain]?.chainId??0))setFromAsset(chainMeta[chain]?.native??'ETH')
+      else if(!['ETH','USDC','USDT','WBTC','LINK','UNI','ARB','OP','POL','BNB','AVAX','AERO','CAKE'].includes(fromAsset))setFromAsset(chainMeta[chain]?.native??'ETH')
+    } else {
+      setTo(chain);setToTokenAddress('');if(!isEvmChainId(chainMeta[chain]?.chainId??0))setToAsset(chainMeta[chain]?.native??'USDC')
+      else if(!['ETH','USDC','USDT','WBTC','LINK','UNI','ARB','OP','POL','BNB','AVAX','AERO','CAKE'].includes(toAsset))setToAsset('USDC')
+    }
+  }
+  async function findBridgeQuote(){
+    setQuoteError('');setQuote(null);setQuoteTokens(null);setExecutionStatus('')
+    if(from===to){setQuoteError('Choose two different networks for a cross-chain transfer.');return}
+    if(!amount||Number(amount)<=0){setQuoteError('Enter an amount greater than zero.');return}
+    if(fromAsset==='PIO'||toAsset==='PIO'){setQuoteError('PIO trading is paused until its official token contract is verified. Choose a provider-listed token for a live route.');return}
+    if(multiEcosystemSource){
+      try{
+        const [source,destination]=await Promise.all([fetchLifiTokens(fromChainId),fetchLifiTokens(toChainId)])
+        const f=resolveProviderToken(source,fromAsset,fromTokenAddress||undefined)
+        const t=resolveProviderToken(destination,toAsset,toTokenAddress||undefined)
+        setMultiWalletTokens({from:f.address,to:t.address});setMultiWalletOpen(true)
+      }catch(e){setQuoteError(e instanceof Error?e.message:'Could not load tokens for this route.')}
+      return
+    }
+    if(!wallet){onConnect();return}
+    if(!isEvmChainId(toChainId)&&!toAddress.trim()){setQuoteError(`Enter the destination ${to} wallet address to receive the bridged tokens.`);return}
+    setQuoteLoading(true)
+    try{
+      const [source,destination]=await Promise.all([fetchLifiTokens(fromChainId),fetchLifiTokens(toChainId)])
+      const f=resolveProviderToken(source,fromAsset,fromTokenAddress||undefined)
+      const t=resolveProviderToken(destination,toAsset,toTokenAddress||undefined)
+      const rawAmount=parseUnitsSafe(amount,f.decimals).toString()
+      const recipient=toAddress.trim()||(isEvmChainId(toChainId)?wallet:'')
+      const result=await getLifiQuote({fromChainId,toChainId,fromToken:f,toToken:t,fromAmount:rawAmount,fromAddress:wallet,toAddress:recipient||wallet,slippage:Number(slippage)/100})
+      setQuote(result);setQuoteTokens({from:f,to:t});setQuotedAt(Date.now())
+    }catch(e){setQuoteError(e instanceof Error?e.message:'Could not find a live bridge route. Try another amount, token or network.')}
+    finally{setQuoteLoading(false)}
+  }
+  async function executeBridge(){
+    if(!quote||!quoteTokens)return
+    const provider=providerForTransactions()
+    if(!provider){setQuoteError('No injected EVM wallet is available. Reconnect and request a fresh quote.');return}
+    if(!wallet){onConnect();return}
+    setExecuting(true);setQuoteError('');setExecutionStatus('Preparing source transaction…')
+    try{
+      const result=await executeLifiQuote({provider,wallet,quote,quotedAt,fromSymbol:quoteTokens.from.symbol,toSymbol:quoteTokens.to.symbol,amount,onStatus:setExecutionStatus})
+      setExecutionStatus(`${result.status} · ${result.txHash}`);notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
+    }catch(e){setQuoteError(e instanceof Error?e.message:'Bridge transaction could not be completed.');setExecutionStatus('')}
+    finally{setExecuting(false)}
+  }
+
+  return <div className="page-content narrow-page cross-chain-page"><PageHeader eyebrow="TRADE / CROSS-CHAIN" title="One flow. Two chains." description="Keep the original bridge layout: enter the amount, choose source and destination tokens, then inspect a live LI.FI route before signing."/><div className="swap-layout"><div className="panel bridge-panel swap-luxury-card">
+    <div className="chain-pair-selectors"><ChainPicker label="FROM NETWORK" value={from} onChange={chain=>chooseNetwork('from',chain)}/><ChainPicker label="TO NETWORK" value={to} onChange={chain=>chooseNetwork('to',chain)}/></div>
+    <div className="swap-card-head"><div className="eyebrow">YOU SEND · {from.toUpperCase()}</div><span className="muted-text">{wallet?`Wallet ${fmtAddress(wallet)}`:'Connect your source wallet to continue'}</span></div>
+    <div className="amount-row bridge-amount"><input value={amount} onChange={e=>setAmount(sanitizeAmount(e.target.value))} placeholder="0.00" inputMode="decimal" aria-label="Amount to bridge"/><button className="token-select" onClick={()=>{setAssetSelect('from');setTokenQuery('')}}><AssetIcon asset={sourceToken} size="sm"/>{sourceToken.symbol}<ChevronDown size={15}/></button></div>
+    <div className="amount-foot"><span>{sourceToken.price!=='—'?`Market price ${sourceToken.price}`:'Provider quote calculates output and fees'}</span><button type="button" onClick={()=>notify('Balance-based MAX is not yet enabled for this token. Enter the amount you want to bridge.')}>MAX</button></div>
+    <div className="bridge-switch"><button className="round-icon" onClick={()=>{setFrom(to);setTo(from);setFromAsset(toAsset);setToAsset(fromAsset);setFromTokenAddress(toTokenAddress);setToTokenAddress(fromTokenAddress)}} aria-label="Reverse bridge networks and assets"><ArrowDownUp size={16}/></button></div>
+    <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE · {to.toUpperCase()}</div><span className="muted-text">{quote?'Live quote':'Estimate after route fees'}</span></div>
+    <div className="amount-row"><div className="output-amount">{quote&&quoteTokens?formatUnitsSafe(quote.estimate.toAmount,quoteTokens.to.decimals):'—'}</div><button className="token-select" onClick={()=>{setAssetSelect('to');setTokenQuery('')}}><AssetIcon asset={destinationToken} size="sm"/>{destinationToken.symbol}<ChevronDown size={15}/></button></div>
+    <div className="amount-foot"><span>{quote&&quoteTokens?`Minimum receive ${formatUnitsSafe(quote.estimate.toAmountMin??quote.estimate.toAmount,quoteTokens.to.decimals)} ${quoteTokens.to.symbol}`:'Final receive amount depends on route and fees'}</span><span>{quote?usdValue(quote.estimate.toAmountUSD):''}</span></div>
+    {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'source':'destination'} token · {assetSelect==='from'?from:to}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><div className="token-picker-meta">{chainTokenList[selectedChain]?.length?`${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens`:'Search LI.FI-listed tokens on the selected network'}</div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search token name or symbol"/>{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading token catalogue…</div>:tokenList.length?tokenList.slice(0,80).map(a=><button key={`${assetSelect}-${a.address||a.id||a.symbol}`} className="picker-row" onClick={()=>{if(assetSelect==='from'){setFromAsset(a.symbol);setFromTokenAddress(a.address||'')}else{setToAsset(a.symbol);setToTokenAddress(a.address||'')}setAssetSelect(null);setTokenQuery('')}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}{a.address?` · ${a.address.slice(0,6)}…${a.address.slice(-4)}`:''}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No tokens found for this search.</div>}</div>}
+    {!isEvmChainId(toChainId)&&<div className="recipient-address-field"><label>DESTINATION WALLET ADDRESS · {to.toUpperCase()}</label><input className="text-input" value={toAddress} onChange={e=>setToAddress(e.target.value)} placeholder={`Paste the destination ${to} address`}/><small>For a different wallet ecosystem, use an address from the destination wallet. Verify it carefully before signing.</small></div>}
+    <div className="quote-summary"><div><span>Route</span><strong>Cross-chain bridge</strong></div><div><span>Provider</span><strong>{quote?.toolDetails?.name||'LI.FI'}</strong></div><div><span>Slippage</span><strong>{slippage}%</strong></div><div><span>Status</span><strong>{quote?'Quote ready':'Awaiting quote'}</strong></div></div>
+    <button className="disclosure-row" onClick={()=>setAdvanced(!advanced)}><span><Settings2 size={15}/> Advanced settings</span><ChevronDown size={15} className={advanced?'rotated':''}/></button>
+    {advanced&&<div className="advanced-settings"><label>Slippage tolerance</label><div className="slippage-options">{['0.10','0.30','0.50','1.00','2.00'].map(x=><button key={x} className={slippage===x?'selected':''} onClick={()=>setSlippage(x)}>{x}%</button>)}</div><p>A fresh route is requested when slippage changes.</p></div>}
+    <RouteError message={quoteError}/>
+    {multiWalletOpen&&<div className="multi-ecosystem-panel panel"><div className="multi-ecosystem-top"><div><div className="eyebrow">MULTI-WALLET ROUTE</div><h3>Connect the wallet for {from}.</h3><p>This source chain uses its own wallet signer. Your original source/destination fields and amount remain available above.</p></div><button className="secondary-button" onClick={()=>setMultiWalletOpen(false)}>Close route panel</button></div><LifiTradeWidget appearance={theme} mode="bridge" fromChainId={fromChainId} toChainId={toChainId} fromToken={multiWalletTokens.from} toToken={multiWalletTokens.to} fromAmount={amount}/></div>}
+    <button className="primary-button full swap-cta" disabled={quoteLoading||executing} onClick={()=>void findBridgeQuote()}>{quoteLoading?'Searching bridge routes…':quote?'Refresh bridge quote':'Find bridge route'} <ArrowRight size={16}/></button>
+    {quote&&quoteTokens&&<QuoteReview quote={quote} fromToken={quoteTokens.from} toToken={quoteTokens.to} fromChainName={from} toChainName={to} quotedAt={quotedAt} status={executionStatus} executing={executing} onRefresh={()=>void findBridgeQuote()} onExecute={()=>void executeBridge()}/>}
+    <div className="safe-note"><ShieldCheck size={15}/> Source confirmation and destination settlement are tracked separately. Never close the app until you have recorded the transaction hash.</div>
+  </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Bridge review</strong></div><p>Read the destination address, minimum receive and fee estimates. When the source is EVM, the source transaction is signed in your injected wallet; non-EVM source routes use the compatible LI.FI wallet panel.</p><ul><li><Check size={14}/> Provider route and fees</li><li><Check size={14}/> Destination address confirmation</li><li><Check size={14}/> Source-chain receipt</li><li><Check size={14}/> Destination settlement status</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO is not included until its official token contract and decimals are verified.</p><span className="pill warning">Not tradable yet</span></div></aside></div></div>
 }
+
 function ReferralProgram({wallet,notify}:{wallet:string;notify:(s:string)=>void}) {
   const [address,setAddress]=useState('')
   const [fee,setFee]=useState('100')

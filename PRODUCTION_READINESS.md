@@ -1,50 +1,39 @@
-# PioSwap production readiness gate
+# PioSwap integration and mainnet-release gate
 
-## Current state
+## Integrated in the current frontend
 
-This repository is a responsive frontend preview. It is **not safe to deploy as a live exchange** and intentionally does not submit swaps or bridges.
+- LI.FI Widget-based swap and cross-chain flows with EVM, Solana, Tron, Bitcoin, Sui and Stellar provider packages. Wallet connection, token selection, quote review and provider-specific transaction handling are supplied by LI.FI Widget.
+- CoW Protocol verified quote, EIP-712 signed sell limit-order creation, account order fetching, exact-amount VaultRelayer allowance checks, and best-effort cancellation on supported networks.
+- CoinGecko market feed, DexScreener DEX-pool market activity, partial native/ERC-20 balance reads over public RPCs, and local transaction activity history.
 
-## Required before enabling mainnet execution
+## Must be completed before a production/mainnet launch
 
-- [ ] Select chain(s), official PIO contract/mint address, token decimals, canonical token list and trusted RPC/data providers.
-- [ ] Integrate a maintained swap/bridge provider under a typed adapter; document supported chains and assets.
-- [ ] Validate quote expiry, chain ID, wallet account, token addresses, recipient, calldata/instructions, spender/targets, value, minimum output and fee totals before wallet handoff.
-- [ ] Add transaction simulation/preflight where supported and block if critical conditions cannot be established.
-- [ ] Require renewed confirmation when a quote expires or materially changes.
-- [ ] Implement approvals with least-privilege defaults and explicit approval review.
-- [ ] Track transaction receipts from chain data; never infer success from a wallet popup or provider response alone.
-- [ ] For cross-chain, track source confirmation and destination settlement independently, with provider-specific recovery guidance.
-- [ ] Replace all illustrative market values with source-attributed, timestamped provider data or remove them.
-- [ ] Add portfolio indexing and price freshness/partial-data behavior; never treat missing data as zero.
-- [ ] Configure secure server-side secrets if a provider key must not be public. Never put secrets in `VITE_*` variables.
-- [ ] Add automated unit/integration/e2e tests, dependency scanning, lockfile review, CSP/security headers, error monitoring and incident/status documentation.
-- [ ] Complete independent security review and test only on testnets/forks before any mainnet launch.
+- [ ] Independently review every provider request, EIP-712 typed-data schema, contract/spender address, chain map, and transaction calldata validation.
+- [ ] Add automated unit/integration/e2e tests for wallet account changes, chain changes, request failures, expired quotes, approval/transaction reverts, pending transactions, bridge recovery, limit-order signatures, fills, cancellations and API rate limits.
+- [ ] Add transaction simulation/preflight and block if critical validation cannot be established. Current provider quote verification is not a replacement for independent security review.
+- [ ] Test swap and bridge routes separately for each supported chain/token/provider and confirm the API response schemas against current provider docs.
+- [ ] Add retry-safe/idempotent UI handling so a user does not accidentally submit a duplicate transaction or limit order after an uncertain network response.
+- [ ] Replace best-effort public RPCs with reliable, monitored RPC infrastructure and add full wallet activity/portfolio indexing if needed.
+- [ ] Add content security policy, security headers, dependency scanning, observability, incident response, rate control, and privacy review.
+- [ ] Configure partner credentials properly. `VITE_*` variables are client-visible and must never contain secret credentials.
+- [ ] Test and independently review the non-EVM flows provided by LI.FI Widget (Solana, Tron, Bitcoin, Sui, Stellar) on supported assets/wallets before production release. TON is not included in the configured LI.FI providers.
+- [ ] Keep PIO trading disabled until its official chain, contract address, decimals, and identity are verified from an authoritative source.
+- [ ] Test on testnets or forks, perform an independent security review and get approval before a mainnet release.
 
-## Release rule
+## Operational notes
 
-Do not enable real transaction submission until all relevant checks above are implemented and tested for each supported chain/provider. A green frontend build alone does not establish exchange safety.
+- Provider routes are dynamic; a quote may not exist for every pair/amount/network. The app only executes if the provider returns an accepted transaction request.
+- The app keeps successful provider-reported transaction submissions in browser local storage and updates source/destination state when observed. This is not a server-backed audit log or full historical activity index.
+- CoW limit orders are signed off-chain; they may remain open or expire without filling. Off-chain cancellation is best effort and can race a settlement.
+- Advanced Trading displays real DEX pool liquidity and volume snapshots, not a centralized exchange order book or guaranteed fill price.
+- Portfolio discovery is partial: native assets plus a small list of common ERC-20s over six EVM networks, best-effort public RPCs, and indicative prices.
+- The fee-sharing referral page is a design/calculator only. It does not implement fee collection or payouts.
 
-
-## Referral program release gate
-
-- [ ] Specify the exact fee pool; do not allocate percentages of gross swap value or silently include network gas.
-- [ ] Define missing referral levels, wallet binding, self-referrals, sybil resistance, eligibility, rounding and payout thresholds.
-- [ ] Add auditable accounting, payout/recovery behavior, monitoring and dispute handling.
-- [ ] Review and test referral contracts independently before any real fee distribution.
-
-## Additional current implementation notes
-- Portfolio queries native coin balances over public RPC endpoints for Ethereum, Arbitrum, Base, Optimism, Polygon, and BNB Chain. RPC availability can vary, and this is not a complete portfolio indexer; ERC-20 and Solana token balances are not included.
-- USD estimates use the current market feed when a matching native asset price is available. Unpriced balances are explicitly identified; total value can therefore be partial.
-- Public RPC endpoints are best-effort and may rate-limit. Production deployment should use monitored, reliable RPC infrastructure and chain-specific tests.
-- This does not enable swaps, bridging, orders, or referral payouts. Do not enable real-money execution without the safety and audit gates above.
+A successful frontend build by itself does not prove exchange safety. No feature should be marketed as audited or production-ready without the checks above.
 
 
-## Cross-chain implementation decision
+## Latest UI change (2026-10-28)
 
-For a real SOL-to-ETH swap, use a cross-chain aggregator with both Solana and EVM providers. LI.FI documents Solana-to-EVM swaps and bridges; see https://li.fi/knowledge-hub/li-fi-expands-to-solana and https://github.com/lifinance/sdk. The application must discover supported chains/tokens from the provider at runtime, request a quote for the connected source wallet, display route and itemized fees, validate quote expiry and transaction targets, execute through the correct wallet provider, and poll source/destination status. Do not treat selecting Solana and Ethereum as proof that a route exists.
-
-Current source changes improve network selection and asset identity presentation only. They do not enable cross-chain execution or create token contracts/addresses. Solana execution needs a Solana wallet/provider and must not be sent through an EVM wallet. Enable only routes returned by the configured provider and test them on supported testnets/forks before mainnet.
-
-## Expanded network and token discovery (UI update)
-
-The network selector now includes 16 selectable EVM/Solana networks and three additional networks marked coming soon. The swap token picker requests the selected network's token catalogue from LI.FI at runtime and displays provider-listed assets with token metadata. This is discovery only: a selectable network or listed token does not imply a route is currently available or that swap execution has been enabled. The interface must keep execution disabled until live quote validation, wallet/provider integration, transaction review and status tracking are implemented and tested.
+- The custom Swap and Cross-Chain form controls have been replaced with LI.FI Widget, themed for PioSwap. This supplies the amount entry, token logos, route quotes, fee/route review and wallet adapter UI.
+- The widget is configured with LI.FI SDK `apiKey` from `VITE_LIFI_API_KEY` when present. This must be a public/client key, not a private secret.
+- `package-lock.json` was removed in this archive because `npm install --package-lock-only` could not resolve packages in the build environment. Run `npm install` locally to generate a correct lockfile before CI/deployment.

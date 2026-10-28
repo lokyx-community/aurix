@@ -1,0 +1,14 @@
+PIOSWAP — ORIGINAL UI RESTORE + QUOTE UX IMPROVEMENT
+
+This package restores the original PioSwap Swap and Cross-Chain page design. It does not replace the app pages with the full-screen LI.FI widget. The widget is only used inside the existing trade page when the selected source ecosystem needs its own wallet signer.
+
+INSTALL (Windows PowerShell):
+1. Extract to a new folder.
+2. Copy your existing .env.local into the folder next to package.json. Do not share the key.
+3. Run: npm install
+4. Run: npm run build
+5. Run: npm run dev
+
+The quote review UI is improved inside the original layout. EVM-source swaps and bridge routes use LI.FI quote/execution helpers. Non-EVM source routes use the official LI.FI wallet panel. TON is still marked coming soon; PIO trading remains disabled pending official contract verification.
+
+Design note: The original custom Swap and Cross-Chain layouts remain. Only the live route quotation is refined. The multi-wallet LI.FI panel is embedded inside the original page and appears only after you request a route using a non-EVM source chain.
