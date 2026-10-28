@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">PioSwap gold coin logo</title>
+  <desc id="desc">A polished gold coin with a crowned P emblem and laurel branches.</desc>
+  <defs>
+    <linearGradient id="rim" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fff4b0"/><stop offset=".16" stop-color="#b77a12"/><stop offset=".31" stop-color="#fff0a0"/><stop offset=".52" stop-color="#8d5b09"/><stop offset=".73" stop-color="#f9d75b"/><stop offset="1" stop-color="#6b4108"/></linearGradient>
+    <linearGradient id="face" x1=".12" y1="0" x2=".88" y2="1"><stop offset="0" stop-color="#7c5a17"/><stop offset=".34" stop-color="#d7b94d"/><stop offset=".57" stop-color="#8d691e"/><stop offset=".8" stop-color="#4d390f"/><stop offset="1" stop-color="#b88a22"/></linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2=".85" y2="1"><stop offset="0" stop-color="#fff9cf"/><stop offset=".22" stop-color="#f9df72"/><stop offset=".48" stop-color="#b98218"/><stop offset=".7" stop-color="#fff0a1"/><stop offset="1" stop-color="#9b6710"/></linearGradient>
+    <filter id="shadow" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur in="SourceAlpha" stdDeviation="5"/><feOffset dy="6"/><feComponentTransfer><feFuncA type="linear" slope=".38"/></feComponentTransfer><feMerge><feMergeNode/><feMergeNode in="SourceGraphic"/></feMerge></filter>
+    <g id="leaf"><path d="M0 0 C-15 -10 -18 -26 0 -34 C16 -23 13 -9 0 0Z" fill="url(#gold)" stroke="#6f4b0b" stroke-width="1.5"/><path d="M0 -2 L0 -29" stroke="#fff0a2" stroke-width="1.5" fill="none"/></g>
+  </defs>
+  <g filter="url(#shadow)">
+    <circle cx="256" cy="250" r="224" fill="#5d5a50"/>
+    <circle cx="256" cy="246" r="222" fill="url(#rim)" stroke="#fff4b8" stroke-width="3"/>
+    <circle cx="256" cy="246" r="207" fill="#4a350d" stroke="#7d5913" stroke-width="4"/>
+    <circle cx="256" cy="246" r="197" fill="url(#face)" stroke="url(#gold)" stroke-width="7"/>
+    <circle cx="256" cy="246" r="181" fill="none" stroke="#f4d96c" stroke-width="2" stroke-dasharray="2 7"/>
+    <circle cx="256" cy="246" r="218" fill="none" stroke="#fff4b7" stroke-width="2" stroke-dasharray="13 8" opacity=".8"/>
+    <!-- Laurel branches -->
+    <g transform="translate(0 5)">
+      <path d="M248 414 C193 400 145 350 132 286 C125 249 134 204 159 173" fill="none" stroke="#c79a32" stroke-width="4"/>
+      <path d="M264 414 C319 400 367 350 380 286 C387 249 378 204 353 173" fill="none" stroke="#c79a32" stroke-width="4"/>
+      <use href="#leaf" transform="translate(153 335) rotate(-60)"/><use href="#leaf" transform="translate(139 307) rotate(-78)"/><use href="#leaf" transform="translate(132 276) rotate(-88)"/><use href="#leaf" transform="translate(137 244) rotate(-105)"/><use href="#leaf" transform="translate(146 214) rotate(-122)"/><use href="#leaf" transform="translate(162 188) rotate(-139)"/><use href="#leaf" transform="translate(183 169) rotate(-150)"/>
+      <use href="#leaf" transform="translate(359 335) rotate(60)"/><use href="#leaf" transform="translate(373 307) rotate(78)"/><use href="#leaf" transform="translate(380 276) rotate(88)"/><use href="#leaf" transform="translate(375 244) rotate(105)"/><use href="#leaf" transform="translate(366 214) rotate(122)"/><use href="#leaf" transform="translate(350 188) rotate(139)"/><use href="#leaf" transform="translate(329 169) rotate(150)"/>
+      <path d="M244 410 L256 420 L268 410" fill="none" stroke="url(#gold)" stroke-width="5" stroke-linecap="round"/>
+    </g>
+    <!-- Crown -->
+    <path d="M207 145 L198 111 L222 128 L240 95 L256 125 L275 95 L291 128 L315 111 L305 145 Z" fill="url(#gold)" stroke="#65430a" stroke-width="4" stroke-linejoin="round"/>
+    <path d="M211 145 L301 145 L296 158 L216 158 Z" fill="url(#gold)" stroke="#65430a" stroke-width="3"/>
+    <circle cx="198" cy="110" r="5" fill="#fff5bb"/><circle cx="240" cy="95" r="5" fill="#fff5bb"/><circle cx="275" cy="95" r="5" fill="#fff5bb"/><circle cx="315" cy="111" r="5" fill="#fff5bb"/>
+    <!-- Monogram P -->
+    <path d="M210 183 H277 C317 183 337 203 337 236 C337 269 316 288 281 288 H248 V376 L210 351 V250 H278 C290 250 298 245 298 235 C298 225 290 220 278 220 H225 Z" fill="url(#gold)" stroke="#5b3b08" stroke-width="7" stroke-linejoin="round"/>
+    <path d="M218 192 H277 C309 192 328 207 328 236 C328 263 310 279 281 279 H239 V360" fill="none" stroke="#fff1a2" stroke-width="3" opacity=".8"/>
+    <path d="M223 207 H276 C296 207 310 217 310 236 C310 254 297 264 279 264 H232" fill="none" stroke="#80530b" stroke-width="4" opacity=".8"/>
+    <!-- Specular glints -->
+    <path d="M105 150 Q140 87 204 65" fill="none" stroke="#fff8d2" stroke-width="4" stroke-linecap="round" opacity=".8"/>
+    <path d="M355 77 Q399 102 417 150" fill="none" stroke="#fff3ae" stroke-width="3" stroke-linecap="round" opacity=".7"/>
+  </g>
+</svg>

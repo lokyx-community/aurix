@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+
 import LifiTradeWidget from './LifiTradeWidget'
-import { encodeFunctionData, decodeFunctionResult } from 'viem'
+import { AdBanner, AnalyticsPage, LimitOrdersPage, LiquidityPage, StakingPage, recordPioSwapTransaction } from './OnchainFeatures'
 import { EVM_CHAINS, type Eip1193Provider, type LifiQuote, type ProviderToken, executeLifiQuote, fetchLifiTokens, formatUnitsSafe, getLifiQuote, isEvmChainId, parseUnitsSafe } from './integrations'
+import { encodeFunctionData, isAddress as isViemAddress } from 'viem'
 import {
   Activity, ArrowDownUp, ArrowLeftRight, ArrowRight, Bell, BookOpen, Check, ChevronDown,
   CircleHelp, Clock3, Command, Compass, Copy, ExternalLink, Eye, EyeOff, FileCheck2,
   Globe2, Grid2X2, LayoutDashboard, LineChart, LockKeyhole, Menu, MoreHorizontal,
-  Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star, TrendingDown,
-  TrendingUp, Wallet, X, Zap
+  Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star, TrendingDown, Coins,
+  TrendingUp, Wallet, X, Zap, RefreshCw,
 } from 'lucide-react'
 
-type Page = 'Overview' | 'Swap' | 'Markets' | 'Advanced Trading' | 'Limit Orders' | 'Portfolio' | 'Earn' | 'Cross-Chain' | 'Activity' | 'Token Explorer' | 'Analytics' | 'Security Center' | 'Referral Program' | 'Settings'
+type Page = 'Overview' | 'Swap' | 'Markets' | 'Advanced Trading' | 'Limit Orders' | 'Liquidity' | 'Portfolio' | 'Earn' | 'Staking' | 'Cross-Chain' | 'Activity' | 'Token Explorer' | 'Analytics' | 'Security Center' | 'Referral Program' | 'Settings'
 type Asset = { symbol: string; name: string; color: string; letter: string; logo?: string; id?: string; address?: string; decimals?: number; isNative?: boolean; price: string; change: string; positive: boolean; marketCap?: number; volume?: number; rank?: number }
 
 const pages: { name: Page; icon: typeof LayoutDashboard; group: string }[] = [
@@ -19,9 +21,11 @@ const pages: { name: Page; icon: typeof LayoutDashboard; group: string }[] = [
   { name: 'Markets', icon: LineChart, group: 'TRADE' },
   { name: 'Advanced Trading', icon: SlidersHorizontal, group: 'TRADE' },
   { name: 'Limit Orders', icon: Clock3, group: 'TRADE' },
+  { name: 'Liquidity', icon: Plus, group: 'TRADE' },
   { name: 'Cross-Chain', icon: Globe2, group: 'TRADE' },
   { name: 'Portfolio', icon: Wallet, group: 'MANAGE' },
   { name: 'Earn', icon: TrendingUp, group: 'MANAGE' },
+  { name: 'Staking', icon: Coins, group: 'MANAGE' },
   { name: 'Activity', icon: Activity, group: 'MANAGE' },
   { name: 'Token Explorer', icon: Compass, group: 'DISCOVER' },
   { name: 'Analytics', icon: LineChart, group: 'DISCOVER' },
@@ -49,7 +53,7 @@ const seedAssets: Asset[] = [
   { symbol: 'CAKE', name: 'PancakeSwap', color: '#D1884F', letter: '🥞', logo: 'https://coin-images.coingecko.com/coins/images/12632/large/pancakeswap-cake.png', id: 'pancakeswap-token', price: '—', change: '—', positive: true },
   { symbol: 'AERO', name: 'Aerodrome Finance', color: '#0052FF', letter: 'A', logo: 'https://coin-images.coingecko.com/coins/images/31745/large/token.png', id: 'aerodrome-finance', price: '—', change: '—', positive: true },
   { symbol: 'JUP', name: 'Jupiter', color: '#C7F284', letter: 'J', logo: 'https://coin-images.coingecko.com/coins/images/34188/large/jup.png', id: 'jupiter-exchange-solana', price: '—', change: '—', positive: true },
-  { symbol: 'PIO', name: 'PIO Gold', color: '#D6AD4B', letter: 'P', price: 'Not listed', change: 'Unverified', positive: true },
+  { symbol: 'PIO', name: 'PIO Coin', color: '#D6AD4B', letter: 'P', logo: '/pio-coin-logo.svg', price: 'Not listed', change: 'Unverified', positive: true },
 ]
 const formatUsd = (n: number) => n >= 1000 ? n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:2}) : n >= 1 ? n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:2,maximumFractionDigits:4}) : n.toLocaleString('en-US',{style:'currency',currency:'USD',minimumFractionDigits:4,maximumFractionDigits:8})
 const formatCompactUsd = (n?: number) => n == null ? '—' : n >= 1e12 ? `$${(n/1e12).toFixed(2)}T` : n >= 1e9 ? `$${(n/1e9).toFixed(2)}B` : n >= 1e6 ? `$${(n/1e6).toFixed(2)}M` : formatUsd(n)
@@ -163,23 +167,45 @@ function App() {
   }, [])
   useEffect(() => {
     let cancelled = false
+    const finishFeed = (mapped: Asset[]) => {
+      const pio = seedAssets.find(a => a.symbol === 'PIO')!
+      const merged = [...mapped]
+      for (const important of seedAssets.filter(a => ['USDC','USDT','WBTC','UNI','ARB','OP','POL','CAKE','AERO','JUP'].includes(a.symbol))) {
+        if (!merged.some(a => a.symbol === important.symbol)) merged.push(important)
+      }
+      merged.push(pio)
+      setMarketAssets(merged)
+      setMarketUpdated(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}))
+      setMarketStatus('live')
+    }
     const loadMarkets = async () => {
+      setMarketStatus('loading')
       try {
-        setMarketStatus('loading')
         const response = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=100&page=1&sparkline=false&price_change_percentage=24h', { headers: { accept: 'application/json' } })
-        if (!response.ok) throw new Error(`Market data returned ${response.status}`)
+        if (!response.ok) throw new Error(`CoinGecko returned ${response.status}`)
         const data = await response.json() as Array<{id:string;symbol:string;name:string;image:string;current_price:number;price_change_percentage_24h:number|null;market_cap:number;total_volume:number;market_cap_rank:number}>
+        if (!Array.isArray(data) || !data.length) throw new Error('CoinGecko returned no market rows')
         if (cancelled) return
-        const mapped: Asset[] = data.map((coin) => ({ symbol: coin.symbol.toUpperCase(), name: coin.name, color: '#C6A45A', letter: coin.symbol.slice(0,1).toUpperCase(), logo: coin.image, id: coin.id, price: formatUsd(coin.current_price), change: coin.price_change_percentage_24h == null ? '—' : `${coin.price_change_percentage_24h >= 0 ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`, positive: (coin.price_change_percentage_24h ?? 0) >= 0, marketCap: coin.market_cap, volume: coin.total_volume, rank: coin.market_cap_rank }))
-        const pio = seedAssets.find(a => a.symbol === 'PIO')!
-        const merged = [...mapped]
-        for (const important of seedAssets.filter(a => ['USDC','USDT','WBTC','UNI','ARB','OP','POL','CAKE','AERO','JUP'].includes(a.symbol))) if (!merged.some(a => a.symbol === important.symbol)) merged.push(important)
-        merged.push(pio)
-        setMarketAssets(merged)
-        setMarketUpdated(new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}))
-        setMarketStatus('live')
+        const mapped: Asset[] = data.map((coin) => ({ symbol: coin.symbol.toUpperCase(), name: coin.name, color: '#C6A45A', letter: coin.symbol.slice(0,1).toUpperCase(), logo: coin.image, id: coin.id, price: formatUsd(Number(coin.current_price)), change: coin.price_change_percentage_24h == null ? '—' : `${coin.price_change_percentage_24h >= 0 ? '+' : ''}${coin.price_change_percentage_24h.toFixed(2)}%`, positive: (coin.price_change_percentage_24h ?? 0) >= 0, marketCap: Number(coin.market_cap) || 0, volume: Number(coin.total_volume) || 0, rank: Number(coin.market_cap_rank) || undefined }))
+        finishFeed(mapped)
       } catch {
-        if (!cancelled) { setMarketStatus('error'); setMarketAssets(seedAssets) }
+        // Use a second public feed if CoinGecko is rate-limited or unavailable.
+        try {
+          const response = await fetch('https://api.coincap.io/v2/assets?limit=100', { headers: { accept: 'application/json' } })
+          if (!response.ok) throw new Error(`CoinCap returned ${response.status}`)
+          const payload = await response.json() as { data?: Array<{id:string;symbol:string;name:string;priceUsd:string;changePercent24Hr:string|null;marketCapUsd:string;volumeUsd24Hr:string;rank:string}> }
+          if (!Array.isArray(payload.data) || !payload.data.length) throw new Error('CoinCap returned no market rows')
+          if (cancelled) return
+          const mapped: Asset[] = payload.data.map((coin) => {
+            const symbol = String(coin.symbol || '').toUpperCase()
+            const curated = seedAssets.find(a => a.symbol === symbol)
+            const change = coin.changePercent24Hr == null ? null : Number(coin.changePercent24Hr)
+            return { symbol, name: coin.name || symbol, color: curated?.color || '#C6A45A', letter: symbol.slice(0,1), logo: curated?.logo, id: curated?.id || coin.id, price: formatUsd(Number(coin.priceUsd)), change: change == null || !Number.isFinite(change) ? '—' : `${change >= 0 ? '+' : ''}${change.toFixed(2)}%`, positive: (change ?? 0) >= 0, marketCap: Number(coin.marketCapUsd) || 0, volume: Number(coin.volumeUsd24Hr) || 0, rank: Number(coin.rank) || undefined }
+          }).filter(a => a.symbol && Number(a.price.replace(/[$,]/g, '')) > 0)
+          finishFeed(mapped)
+        } catch {
+          if (!cancelled) { setMarketStatus('error'); setMarketAssets(seedAssets) }
+        }
       }
     }
     void loadMarkets()
@@ -278,6 +304,8 @@ function App() {
       </div>
     </header>
 
+    <AdBanner notify={notify} />
+
     {searchOpen && <div className="search-popover"><Search size={17}/><input autoFocus placeholder="Search tokens or pages…" value={query} onChange={e => setQuery(e.target.value)}/><button className="icon-button" onClick={() => {setSearchOpen(false);setQuery('')}}><X size={16}/></button><div className="search-results">{filteredAssets.slice(0,5).map(a=><button key={a.symbol} onClick={()=>{navTo('Token Explorer');setQuery(a.symbol)}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}</small></span><ArrowRight size={15}/></button>)}</div></div>}
 
     <div className="layout">
@@ -294,14 +322,16 @@ function App() {
         {page === 'Overview' && <Overview onNavigate={navTo} wallet={wallet} privacy={privacy} setPrivacy={setPrivacy} watchlist={watchlist} toggleWatch={toggleWatch} notify={notify} assets={marketAssets} marketStatus={marketStatus} marketUpdated={marketUpdated} />}
         {page === 'Swap' && <Swap theme={theme} assets={marketAssets} fromAsset={fromAsset} toAsset={toAsset} setFromAsset={setFromAsset} setToAsset={setToAsset} amount={amount} setAmount={setAmount} wallet={wallet} onConnect={()=>setModal('connect')} onPreview={doSwapPreview} notify={notify} />}
         {page === 'Markets' && <Markets query={query} setQuery={setQuery} assets={filteredAssets} watchlist={watchlist} toggleWatch={toggleWatch} marketStatus={marketStatus} marketUpdated={marketUpdated} onSelect={() => navTo('Token Explorer')} />}
-        {page === 'Advanced Trading' && <AdvancedTrading notify={notify}/>}
-        {page === 'Limit Orders' && <Unavailable title="Limit orders" eyebrow="ADVANCED TRADING" description="Limit orders require a real execution or monitoring mechanism. No simulated orders will be shown as active." />}
+        {page === 'Advanced Trading' && <AdvancedTrading wallet={wallet} assets={marketAssets} onConnect={()=>setModal('connect')} notify={notify} onNavigate={navTo}/>}
+        {page === 'Limit Orders' && <LimitOrdersPage assets={marketAssets} wallet={wallet} onConnect={()=>setModal('connect')} notify={notify} />}
+        {page === 'Liquidity' && <LiquidityPage notify={notify} wallet={wallet} onConnect={()=>setModal('connect')} />}
         {page === 'Cross-Chain' && <CrossChain theme={theme} assets={marketAssets} wallet={wallet} onConnect={()=>setModal('connect')} notify={notify}/>}
         {page === 'Portfolio' && <Portfolio privacy={privacy} setPrivacy={setPrivacy} wallet={wallet} assets={marketAssets} onConnect={()=>setModal('connect')}/>}
-        {page === 'Earn' && <Unavailable title="Earn, with clarity." eyebrow="EARN" description="Yield products will appear only when a supported protocol, current rate source, fees, lockups, and risk disclosures are configured." />}
+        {page === 'Earn' && <EarnPage notify={notify}/>}
+        {page === 'Staking' && <StakingPage wallet={wallet} onConnect={()=>setModal('connect')} notify={notify} />}
         {page === 'Activity' && <ActivityPage wallet={wallet}/>}
         {page === 'Token Explorer' && <TokenExplorer assets={filteredAssets} query={query} setQuery={setQuery} />}
-        {page === 'Analytics' && <Analytics/>}
+        {page === 'Analytics' && <AnalyticsPage assets={marketAssets} marketStatus={marketStatus} marketUpdated={marketUpdated} />}
         {page === 'Security Center' && <SecurityCenter/>}
         {page === 'Referral Program' && <ReferralProgram wallet={wallet} notify={notify}/>}
         {page === 'Settings' && <SettingsPage theme={theme} setTheme={setTheme} settings={settings} setSettings={setSettings} notify={notify}/>}
@@ -309,16 +339,16 @@ function App() {
     </div>
 
     <nav className="mobile-bottom-nav" aria-label="Main navigation">
-      {[{n:'Overview' as Page,i:LayoutDashboard},{n:'Swap' as Page,i:ArrowLeftRight},{n:'Markets' as Page,i:LineChart},{n:'Portfolio' as Page,i:Wallet},{n:'Activity' as Page,i:Activity},{n:'Referral Program' as Page,i:Sparkles}].map(it=><button key={it.n} className={page===it.n?'active':''} onClick={()=>navTo(it.n)}><it.i size={19}/><span>{it.n==='Overview'?'Home':it.n==='Referral Program'?'Refer':it.n}</span></button>)}
+      {[{n:'Overview' as Page,i:LayoutDashboard},{n:'Swap' as Page,i:ArrowLeftRight},{n:'Markets' as Page,i:LineChart},{n:'Portfolio' as Page,i:Wallet},{n:'Staking' as Page,i:Coins},{n:'Referral Program' as Page,i:Sparkles}].map(it=><button key={it.n} className={page===it.n?'active':''} onClick={()=>navTo(it.n)}><it.i size={19}/><span>{it.n==='Overview'?'Home':it.n==='Referral Program'?'Refer':it.n}</span></button>)}
     </nav>
 
     {toast && <div className="toast"><Check size={16}/>{toast}<button onClick={()=>setToast('')}><X size={14}/></button></div>}
     {modal !== 'none' && <div className="modal-backdrop" onClick={()=>setModal('none')}><div className="modal" onClick={e=>e.stopPropagation()}>
       <button className="modal-close icon-button" onClick={()=>setModal('none')}><X size={18}/></button>
       {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. PioSwap will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Connection only. Trading is not enabled in this preview.</div></> :
-      <><div className="modal-symbol"><ShieldCheck size={24}/></div><h2>Execution not configured</h2><p>This preview does not have a verified PIO contract, swap provider, chain configuration, or transaction preflight. No transaction will be submitted.</p><button className="primary-button full" onClick={()=>setModal('none')}>Got it <Check size={16}/></button></>}
+      <><div className="modal-symbol"><ShieldCheck size={24}/></div><h2>PIO setup required</h2><p>PIO-specific staking, liquidity and referral actions stay blocked until verified token and chain contracts are configured. Other swap or bridge routes may be available through their provider and still require you to review and confirm the exact transaction in your wallet.</p><button className="primary-button full" onClick={()=>setModal('none')}>Got it <Check size={16}/></button></>}
     </div></div>}
-    <footer className="footer"><span>© 2026 PioSwap</span><span>Market data by CoinGecko · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview build · trading disabled</span></footer>
+    <footer className="footer"><span>© 2026 PioSwap</span><span>Public market data · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview · verify contracts before PIO transactions</span></footer>
   </div>
 }
 
@@ -326,7 +356,7 @@ function AssetIcon({ asset, size='md' }: {asset: Asset; size?: 'md'|'sm'}) {
   return <span className={`asset-icon ${size} ${asset.logo ? 'has-logo' : 'logo-pending'}`} style={{'--asset-color':asset.color} as React.CSSProperties}>{asset.logo ? <img src={asset.logo} alt={`${asset.name} logo`} loading="lazy" onError={e=>{e.currentTarget.style.display='none';e.currentTarget.parentElement?.classList.add('logo-fallback')}}/> : null}<span className="asset-letter">{asset.letter}</span></span>
 }
 function PageHeader({ eyebrow, title, description, right }: {eyebrow:string;title:string;description?:string;right?:React.ReactNode}) {
-  return <div className="page-header"><div><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{description&&<p>{description}</p>}</div>{right&&<div className="page-header-right">{right}</div>}</div>
+  return <div className="page-header page-header-ribbon"><ParticleRibbon/><div className="page-header-main"><div className="eyebrow">{eyebrow}</div><h1>{title}</h1>{description&&<p>{description}</p>}</div>{right&&<div className="page-header-right">{right}</div>}</div>
 }
 function Overview({onNavigate,wallet,privacy,setPrivacy,watchlist,toggleWatch,notify,assets:liveAssets,marketStatus,marketUpdated}:{onNavigate:(p:Page)=>void;wallet:string;privacy:boolean;setPrivacy:(b:boolean)=>void;watchlist:string[];toggleWatch:(s:string)=>void;notify:(s:string)=>void;assets:Asset[];marketStatus:'loading'|'live'|'error';marketUpdated:string}) {
   const [marketTab,setMarketTab] = useState('Watchlist')
@@ -350,7 +380,7 @@ function Overview({onNavigate,wallet,privacy,setPrivacy,watchlist,toggleWatch,no
       <div className="panel quick-swap"><div className="panel-heading"><div><div className="eyebrow">QUICK ACTION</div><h3>Swap, simply.</h3></div><button className="icon-button" onClick={()=>onNavigate('Swap')}><ArrowUpDownIcon/></button></div><div className="quick-swap-field"><span>You pay</span><strong>Enter amount</strong><span className="field-token"><span className="token-mini">Ξ</span> ETH <ChevronDown size={13}/></span></div><div className="swap-mid"><span><ArrowDownUp size={15}/></span></div><div className="quick-swap-field second"><span>You receive</span><strong>—</strong><span className="field-token"><span className="token-mini pio">P</span> PIO <ChevronDown size={13}/></span></div><div className="quote-hint"><ShieldCheck size={14}/> Quote and token verification required</div><button className="primary-button full" onClick={()=>onNavigate('Swap')}>Open swap <ArrowRight size={15}/></button></div>
     </div>
     <div className="section-heading market-section-head"><div><div className="eyebrow">MARKET WATCH</div><h2>Markets in focus.</h2></div><button className="text-button" onClick={()=>onNavigate('Markets')}>View all markets <ArrowRight size={15}/></button></div>
-    <div className="panel market-panel"><div className="table-tabs">{['Watchlist','All','Gainers'].map(t=><button key={t} className={marketTab===t?'active':''} onClick={()=>setMarketTab(t)}>{t}</button>)}</div><AssetTable rows={shown} watchlist={watchlist} toggleWatch={toggleWatch} onSelect={()=>onNavigate('Token Explorer')}/><div className="data-note"><span className={`status-indicator ${marketStatus==='live'?'':'muted'}`}/> {marketStatus==='live'?`Live market data via CoinGecko · refreshed ${marketUpdated}. PIO is not listed in this feed.`:marketStatus==='loading'?'Loading live market data…':'Live market data is temporarily unavailable or rate-limited. Values are not being fabricated.'} {marketStatus==='error'&&<button className="text-button" onClick={()=>window.location.reload()}>Retry</button>}</div></div>
+    <div className="panel market-panel"><div className="table-tabs">{['Watchlist','All','Gainers'].map(t=><button key={t} className={marketTab===t?'active':''} onClick={()=>setMarketTab(t)}>{t}</button>)}</div><AssetTable rows={shown} watchlist={watchlist} toggleWatch={toggleWatch} onSelect={()=>onNavigate('Token Explorer')}/><div className="data-note"><span className={`status-indicator ${marketStatus==='live'?'':'muted'}`}/> {marketStatus==='live'?`Live public market data · refreshed ${marketUpdated}. PIO is not listed in this feed.`:marketStatus==='loading'?'Loading live market data…':'Live market data is temporarily unavailable or rate-limited. Values are not being fabricated.'} {marketStatus==='error'&&<button className="text-button" onClick={()=>window.location.reload()}>Retry</button>}</div></div>
     <div className="feature-row"><button className="feature-card" onClick={()=>onNavigate('Cross-Chain')}><div className="feature-icon"><Globe2 size={19}/></div><span className="feature-title">Across chains</span><span className="feature-desc">Compare routes before you move.</span><ArrowRight size={16}/></button><button className="feature-card" onClick={()=>onNavigate('Security Center')}><div className="feature-icon"><ShieldCheck size={19}/></div><span className="feature-title">Know before you sign</span><span className="feature-desc">Preflight checks, not guesswork.</span><ArrowRight size={16}/></button><button className="feature-card" onClick={()=>onNavigate('Activity')}><div className="feature-icon"><Activity size={19}/></div><span className="feature-title">Every step, visible</span><span className="feature-desc">Follow transactions from start to finish.</span><ArrowRight size={16}/></button></div>
   </div>
 }
@@ -584,6 +614,7 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
     try {
       const result = await executeLifiQuote({ provider, wallet, quote, quotedAt, fromSymbol:quoteTokens.from.symbol, toSymbol:quoteTokens.to.symbol, amount, onStatus:setExecutionStatus })
       setExecutionStatus(`${result.status} · ${result.txHash}`)
+      recordPioSwapTransaction({ hash: result.txHash, fromSymbol: quoteTokens.from.symbol, toSymbol: quoteTokens.to.symbol, amount, chain: 'Swap · current source network', status: result.status })
       notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Transaction could not be completed.'
@@ -620,13 +651,123 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
 function Markets({query,setQuery,assets:rows,watchlist,toggleWatch,marketStatus,marketUpdated,onSelect}:{query:string;setQuery:(s:string)=>void;assets:Asset[];watchlist:string[];toggleWatch:(s:string)=>void;marketStatus:'loading'|'live'|'error';marketUpdated:string;onSelect:()=>void}) {
   const [tab,setTab]=useState('All assets')
   const filtered=rows.filter(a=>tab==='Watchlist'?watchlist.includes(a.symbol):true)
-  return <div className="page-content"><PageHeader eyebrow="DISCOVER / MARKETS" title="Markets, without the noise." description="Live market prices, 24-hour moves and market-cap rankings from CoinGecko. PIO is shown separately until its identity is verified."/><div className="market-tools"><div className="search-field"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search by name or symbol"/></div><button className="secondary-button" onClick={()=>setTab(tab==='Watchlist'?'All assets':'Watchlist')}><SlidersHorizontal size={15}/>{tab==='Watchlist'?'Watchlist':'Filters'}</button></div><div className="panel market-panel"><div className="table-tabs">{['All assets','Watchlist'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}</button>)}</div><AssetTable rows={filtered} watchlist={watchlist} toggleWatch={toggleWatch} onSelect={onSelect}/><div className="data-note"><span className={`status-indicator ${marketStatus==='live'?'':'muted'}`}/> {marketStatus==='live'?`Live CoinGecko data · last refreshed ${marketUpdated}.`:marketStatus==='loading'?'Fetching market data…':'Market data unavailable. Check your connection or retry shortly; no placeholder prices are shown.'}</div></div></div>
+  return <div className="page-content"><PageHeader eyebrow="DISCOVER / MARKETS" title="Markets, without the noise." description="Live market prices, 24-hour moves and market-cap rankings from CoinGecko. PIO is shown separately until its identity is verified."/><div className="market-tools"><div className="search-field"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search by name or symbol"/></div><button className="secondary-button" onClick={()=>setTab(tab==='Watchlist'?'All assets':'Watchlist')}><SlidersHorizontal size={15}/>{tab==='Watchlist'?'Watchlist':'Filters'}</button></div><div className="panel market-panel"><div className="table-tabs">{['All assets','Watchlist'].map(t=><button className={tab===t?'active':''} onClick={()=>setTab(t)} key={t}>{t}</button>)}</div><AssetTable rows={filtered} watchlist={watchlist} toggleWatch={toggleWatch} onSelect={onSelect}/><div className="data-note"><span className={`status-indicator ${marketStatus==='live'?'':'muted'}`}/> {marketStatus==='live'?`Live public market data · last refreshed ${marketUpdated}.`:marketStatus==='loading'?'Fetching market data…':'Market data unavailable. Check your connection or retry shortly; no placeholder prices are shown.'}</div></div></div>
 }
-function AdvancedTrading({notify}:{notify:(s:string)=>void}) {
+function AdvancedTrading({wallet,assets,onConnect,notify,onNavigate}:{wallet:string;assets:Asset[];onConnect:()=>void;notify:(s:string)=>void;onNavigate:(p:Page)=>void}) {
   const [side,setSide]=useState<'Buy'|'Sell'>('Buy')
   const [pair,setPair]=useState('ETH / USDC')
-  return <div className="page-content"><PageHeader eyebrow="TRADE / ADVANCED" title="The details, in view." description="A professional layout for charting and order-book data, with honest availability states." right={<button className="secondary-button" onClick={()=>notify('Live exchange feed is not configured.')}><Activity size={15}/> Feed status</button>}/><div className="trading-grid"><div className="panel chart-panel"><div className="chart-toolbar"><button className="pair-select" onClick={()=>setPair(pair==='ETH / USDC'?'BTC / USDC':'ETH / USDC')}>{pair}<ChevronDown size={14}/></button><div className="chart-times">{['1m','5m','15m','1H','4H','1D'].map(t=><button key={t} onClick={()=>notify('Historical candles are unavailable until a data provider is connected.')}>{t}</button>)}</div></div><div className="chart-placeholder"><div className="chart-watermark">{pair.split(' / ')[0]}</div><LineChart size={42} strokeWidth={1}/><strong>Chart data unavailable</strong><span>Connect a market-data provider to display real candles.</span></div><div className="chart-footer"><span>Source: not connected</span><span>Last update: —</span></div></div><div className="panel orderbook-panel"><div className="orderbook-head"><h3>Order book</h3><span className="pill neutral">No feed</span></div><div className="orderbook-columns"><span>Price (USDC)</span><span>Amount</span><span>Total</span></div><div className="book-empty"><div className="book-line red"/><div className="book-line red short"/><div className="book-line red medium"/><div className="book-mid">Spread unavailable</div><div className="book-line green medium"/><div className="book-line green short"/><div className="book-line green"/></div><div className="data-note">No order book data is being fabricated.</div></div></div><div className="panel order-entry"><div className="order-tabs"><button className={side==='Buy'?'buy-active':''} onClick={()=>setSide('Buy')}>Buy</button><button className={side==='Sell'?'sell-active':''} onClick={()=>setSide('Sell')}>Sell</button></div><label>Order type</label><div className="input-static">Market <ChevronDown size={15}/></div><label>Price</label><div className="input-static">Market price unavailable</div><label>Amount</label><input className="text-input" placeholder="0.00" inputMode="decimal"/><div className="quote-summary"><div><span>Available balance</span><strong>—</strong></div><div><span>Estimated fee</span><strong>—</strong></div></div><button className={`primary-button full ${side==='Sell'?'sell-button':''}`} onClick={()=>notify('Order placement is disabled until a verified execution provider is integrated.')}>{side} {pair.split(' / ')[0]}</button></div></div>
+  const [interval,setIntervalValue]=useState('1H')
+  const [amount,setAmount]=useState('')
+  const [chart,setChart]=useState<Array<[number,number]>>([])
+  const [chartLoading,setChartLoading]=useState(false)
+  const [chartError,setChartError]=useState('')
+  const [quote,setQuote]=useState<LifiQuote|null>(null)
+  const [tokens,setTokens]=useState<{from:ProviderToken;to:ProviderToken}|null>(null)
+  const [quotedAt,setQuotedAt]=useState(0)
+  const [busy,setBusy]=useState(false)
+  const [status,setStatus]=useState('')
+  const [error,setError]=useState('')
+  const [orderType,setOrderType]=useState<'Market'|'Limit'>('Market')
+  const [limitPrice,setLimitPrice]=useState('')
+  const [tokenSearch,setTokenSearch]=useState('')
+  const symbols=pair.split(' / ')
+  const base=assets.find(a=>a.symbol===symbols[0])
+  const quoteAsset=assets.find(a=>a.symbol===symbols[1])
+  const price=Number(base?.price.replace(/[$,]/g,''))
+  const validPrice=Number.isFinite(price)&&price>0
+  const pairs=['ETH / USDC','BTC / USDC','SOL / USDC','BNB / USDT','ETH / USDT','ARB / USDC','LINK / USDC']
+  useEffect(()=>{
+    if(!base?.id){setChart([]);setChartError('Select a supported market asset.');return}
+    let cancelled=false
+    setChartLoading(true);setChartError('')
+    const days=interval==='1D'?'1':interval==='4H'?'1':interval==='1H'?'1':interval==='15m'?'1':'1'
+    fetch(`https://api.coingecko.com/api/v3/coins/${encodeURIComponent(base.id)}/market_chart?vs_currency=usd&days=${days}`)
+      .then(r=>{if(!r.ok)throw new Error(`Chart feed returned ${r.status}`);return r.json()})
+      .then(data=>{if(cancelled)return;const points=Array.isArray(data?.prices)?data.prices.filter((x:any)=>Array.isArray(x)&&Number.isFinite(x[0])&&Number.isFinite(x[1])) as Array<[number,number]>:[];setChart(points.slice(-90));if(!points.length)setChartError('No candle data was returned for this asset.')})
+      .catch(e=>{if(!cancelled){setChart([]);setChartError(e instanceof Error?e.message:'Market chart unavailable.')}})
+      .finally(()=>{if(!cancelled)setChartLoading(false)})
+    return()=>{cancelled=true}
+  },[base?.id,interval])
+  const chartPath=useMemo(()=>{
+    if(!chart.length)return ''
+    const vals=chart.map(p=>p[1]),min=Math.min(...vals),max=Math.max(...vals),span=max-min||1
+    return chart.map((p,i)=>`${i?'L':'M'} ${(i/(chart.length-1||1))*1000} ${220-((p[1]-min)/span)*190}`).join(' ')
+  },[chart])
+  async function requestQuote(){
+    setError('');setStatus('');setQuote(null);setTokens(null)
+    if(orderType==='Limit'){setError('Limit order execution is not enabled yet. Market orders are routed through LI.FI; limit orders require a separate order-execution provider.');return}
+    if(!wallet){onConnect();return}
+    if(!amount||!Number.isFinite(Number(amount))||Number(amount)<=0){setError('Enter a valid amount greater than zero.');return}
+    const fromSymbol=side==='Buy'?symbols[1]:symbols[0],toSymbol=side==='Buy'?symbols[0]:symbols[1]
+    const chainId=1
+    setBusy(true)
+    try{
+      const list=await fetchLifiTokens(chainId)
+      const from=list.find(t=>t.symbol.toUpperCase()===fromSymbol.toUpperCase())
+      const to=list.find(t=>t.symbol.toUpperCase()===toSymbol.toUpperCase())
+      if(!from||!to)throw new Error(`LI.FI does not list ${fromSymbol} or ${toSymbol} on Ethereum. Choose another pair.`)
+      const raw=parseUnitsSafe(amount,from.decimals).toString()
+      const result=await getLifiQuote({fromChainId:chainId,toChainId:chainId,fromToken:from,toToken:to,fromAmount:raw,fromAddress:wallet,toAddress:wallet,slippage:0.005})
+      setQuote(result);setTokens({from,to});setQuotedAt(Date.now())
+    }catch(e){setError(e instanceof Error?e.message:'Unable to retrieve a live executable quote.')}
+    finally{setBusy(false)}
+  }
+  async function execute(){
+    if(!quote||!tokens)return
+    const provider=providerForTransactions()
+    if(!provider){setError('No injected EVM wallet detected. Connect a compatible wallet and refresh the quote.');return}
+    setBusy(true);setError('');setStatus('Preparing transaction…')
+    try{
+      const result=await executeLifiQuote({provider,wallet,quote,quotedAt,fromSymbol:tokens.from.symbol,toSymbol:tokens.to.symbol,amount,onStatus:setStatus})
+      setStatus(`${result.status} · ${result.txHash}`);recordPioSwapTransaction({ hash: result.txHash, fromSymbol: tokens.from.symbol, toSymbol: tokens.to.symbol, amount, chain: 'Ethereum', status: result.status });notify(`Trade ${result.status.toLowerCase()}.`);setQuote(null)
+    }catch(e){setError(e instanceof Error?e.message:'Trade execution failed.');setStatus('')}
+    finally{setBusy(false)}
+  }
+  return <div className="page-content"><PageHeader eyebrow="TRADE / ADVANCED" title="Trade with precision." description="Live market charting and wallet-signed market swaps. Orders are only submitted after you review a live provider quote." right={<span className={`pill ${validPrice?'success':'neutral'}`}>{validPrice?'Market feed':'Feed unavailable'}</span>}/>
+    <div className="trading-grid"><div className="panel chart-panel"><div className="chart-toolbar"><div className="advanced-pair-picker"><span className="pair-logo-stack" aria-label={`${base?.symbol||symbols[0]} / ${quoteAsset?.symbol||symbols[1]} logos`}>{[base,quoteAsset].map((a,i)=><span className={`pair-logo ${i===1?'pair-logo-overlap':''}`} key={`${a?.symbol||symbols[i]}-${i}`} style={{background:a?.color||'#30343d'}}>{a?.logo?<img src={a.logo} alt="" onError={e=>{e.currentTarget.style.display='none'}}/>:a?.letter||symbols[i]?.slice(0,1)}</span>)}</span><select className="small-select" value={pair} onChange={e=>{setPair(e.target.value);setQuote(null)}} aria-label="Market pair">{pairs.map(p=><option key={p}>{p}</option>)}</select></div><div className="chart-times">{['15m','1H','4H','1D'].map(t=><button className={interval===t?'selected':''} key={t} onClick={()=>setIntervalValue(t)}>{t}</button>)}</div></div>
+      <div className="advanced-price"><strong>{validPrice?formatUsd(price):'—'}</strong><span>{base?.symbol||symbols[0]} price · USD reference</span></div>
+      <div className="chart-placeholder live-chart">{chartLoading?<span>Loading live chart…</span>:chart.length?<svg viewBox="0 0 1000 240" preserveAspectRatio="none" aria-label={`${base?.name||symbols[0]} market price chart`}><defs><linearGradient id="pioChartFill" x1="0" x2="0" y1="0" y2="1"><stop offset="0%" stopColor="#d6ad4b" stopOpacity=".26"/><stop offset="100%" stopColor="#d6ad4b" stopOpacity="0"/></linearGradient></defs><path d={`${chartPath} L 1000 240 L 0 240 Z`} fill="url(#pioChartFill)"/><path d={chartPath} fill="none" stroke="#d6ad4b" strokeWidth="2.4" vectorEffect="non-scaling-stroke"/></svg>:<span>{chartError||'Chart data unavailable'}</span>}</div><div className="chart-footer"><span>Source: CoinGecko public market data</span><span>{chart.length?new Date(chart[chart.length-1][0]).toLocaleTimeString(): '—'}</span></div>
+      </div><div className="panel orderbook-panel"><div className="orderbook-head"><h3>Market snapshot</h3><span className="pill neutral">Spot reference</span></div><div className="orderbook-columns"><span>Metric</span><span>Value</span><span>Source</span></div>{[['Price',base?.price||'—'],['24h change',base?.change||'—'],['24h volume',formatCompactUsd(base?.volume)],['Market cap',formatCompactUsd(base?.marketCap)]].map(([k,v])=><div className="snapshot-row" key={k}><span>{k}</span><strong>{v}</strong><small>Market feed</small></div>)}<div className="data-note">A public market snapshot is shown, not an exchange order book.</div></div></div>
+    <div className="panel order-entry advanced-order-entry"><div className="order-tabs"><button className={side==='Buy'?'buy-active':''} onClick={()=>{setSide('Buy');setQuote(null)}}>Buy</button><button className={side==='Sell'?'sell-active':''} onClick={()=>{setSide('Sell');setQuote(null)}}>Sell</button></div><label>Order type</label><select className="small-select" value={orderType} onChange={e=>{setOrderType(e.target.value as 'Market'|'Limit');setQuote(null)}}><option>Market</option><option>Limit</option></select>
+      {orderType==='Limit'&&<><label>Limit price (USD)</label><input className="text-input" value={limitPrice} onChange={e=>setLimitPrice(e.target.value)} inputMode="decimal" placeholder="Enter limit price"/><div className="data-note">This market panel cannot execute a limit order. Use Limit Orders to save a persistent price trigger, or configure an execution/keeper provider for unattended trading.</div><button className="secondary-button full" onClick={()=>onNavigate('Limit Orders')}><Clock3 size={14}/> Open Limit Orders</button></>}
+      <label>Amount ({side==='Buy'?symbols[1]:symbols[0]})</label><input className="text-input" value={amount} onChange={e=>{setAmount(e.target.value);setQuote(null)}} placeholder="0.00" inputMode="decimal"/>
+      <div className="quote-summary"><div><span>Reference price</span><strong>{validPrice?formatUsd(price):'—'}</strong></div><div><span>Available balance</span><strong>Check wallet</strong></div></div>
+      <button className={`primary-button full ${side==='Sell'?'sell-button':''}`} disabled={busy} onClick={()=>quote?void execute():void requestQuote()}>{busy?'Processing…':quote?'Review & execute trade':`${side} ${symbols[0]} · Get live quote`}</button>
+      {quote&&<QuoteReview quote={quote} fromToken={tokens!.from} toToken={tokens!.to} fromChainName="Ethereum" toChainName="Ethereum" quotedAt={quotedAt} status={status} executing={busy} onRefresh={()=>void requestQuote()} onExecute={()=>void execute()}/>}
+      {error&&<div className="error-note">{error}</div>}{status&&<div className="data-note">{status}</div>}
+    </div><div className="data-note advanced-disclaimer"><ShieldCheck size={14}/> Trades are routed through LI.FI's available on-chain liquidity. CoinGecko prices are references, not guaranteed execution prices. Review token, network, slippage and gas in your wallet before signing.</div></div>
 }
+
+function EarnPage({notify}:{notify:(s:string)=>void}) {
+  const [pools,setPools]=useState<Array<{pool:string;project:string;chain:string;symbol:string;apy:number;apyBase?:number;apyReward?:number;tvlUsd:number;url?:string}>>([])
+  const [loading,setLoading]=useState(true)
+  const [error,setError]=useState('')
+  const [query,setQuery]=useState('')
+  const [chain,setChain]=useState('All')
+  async function loadPools() {
+    setLoading(true);setError('')
+    try {
+      const response=await fetch('https://yields.llama.fi/pools',{headers:{accept:'application/json'}})
+      if(!response.ok)throw new Error(`Yield data provider returned ${response.status}`)
+      const payload=await response.json() as {data?:Array<{pool?:string;project?:string;chain?:string;symbol?:string;apy?:number|null;apyBase?:number|null;apyReward?:number|null;tvlUsd?:number;url?:string;exposure?:string}>}
+      if(!Array.isArray(payload.data))throw new Error('Yield data provider returned an unexpected response. Try refresh or check the provider status.')
+      const filtered=payload.data.filter(p=>p.exposure!=='single'&&Number.isFinite(Number(p.apy))&&Number(p.tvlUsd)>100000).map(p=>({pool:String(p.pool||''),project:String(p.project||'Protocol'),chain:String(p.chain||'Unknown'),symbol:String(p.symbol||'—'),apy:Number(p.apy),apyBase:p.apyBase==null?undefined:Number(p.apyBase),apyReward:p.apyReward==null?undefined:Number(p.apyReward),tvlUsd:Number(p.tvlUsd),url:p.url})).filter(p=>p.pool&&Number.isFinite(p.apy)&&Number.isFinite(p.tvlUsd)).sort((a,b)=>b.tvlUsd-a.tvlUsd).slice(0,100)
+      setPools(filtered)
+      if(!filtered.length)throw new Error('The provider responded, but no pools matched the current TVL/APY criteria. Try again later.')
+    } catch(e) {setError(e instanceof Error?e.message:'Yield opportunities are currently unavailable.')}
+    finally {setLoading(false)}
+  }
+  useEffect(()=>{void loadPools()},[])
+  const chains=Array.from(new Set(pools.map(p=>p.chain))).sort()
+  const visible=pools.filter(p=>(chain==='All'||p.chain===chain)&&`${p.project} ${p.chain} ${p.symbol}`.toLowerCase().includes(query.toLowerCase()))
+  return <div className="page-content"><PageHeader eyebrow="EARN / YIELD DISCOVERY" title="Explore yield, with clarity." description="Discover public yield opportunities with protocol, chain and TVL context. APY is variable and is not a guarantee; deposits are not enabled until a reviewed protocol adapter is configured." right={<span className="pill warning">Deposit integration pending</span>}/>
+    <div className="earn-notice panel"><ShieldCheck size={18}/><div><strong>Public yield feed · no fake balances</strong><p>Yield rates and TVL are sourced from DefiLlama. The filter includes eligible public pools above $100k reported TVL; this discovery page does not custody funds or submit deposits. Each protocol must be reviewed and connected before a deposit/withdraw flow can be safely activated.</p></div></div>
+    <div className="market-tools earn-tools"><input className="text-input" placeholder="Search protocol, chain or asset" value={query} onChange={e=>setQuery(e.target.value)}/><select className="small-select" value={chain} onChange={e=>setChain(e.target.value)}><option>All</option>{chains.map(c=><option key={c}>{c}</option>)}</select><button className="secondary-button" disabled={loading} onClick={()=>void loadPools()}><RefreshCw size={14}/>{loading?'Loading…':'Refresh'}</button></div>
+    {loading?<div className="panel data-note">Loading current yield data…</div>:error?<div className="panel error-note">{error} <button className="text-button" onClick={()=>void loadPools()}>Retry</button></div>:<div className="panel earn-table-panel"><table className="asset-table"><thead><tr><th>Protocol / pool</th><th>Chain</th><th>Assets</th><th>APY</th><th>TVL</th><th>Details</th></tr></thead><tbody>{visible.map(p=><tr key={p.pool}><td><strong>{p.project}</strong><small>{p.pool.slice(0,12)}…</small></td><td>{p.chain}</td><td>{p.symbol}</td><td className="gold-value">{p.apy.toFixed(2)}%</td><td>{formatCompactUsd(p.tvlUsd)}</td><td>{p.url?<a href={p.url} target="_blank" rel="noreferrer">Protocol ↗</a>:'—'}</td></tr>)}</tbody></table>{!visible.length&&<div className="data-note">No matching pools for this search. Clear the filters or try another protocol.</div>}</div>}
+    <div className="data-note">Provider: DefiLlama yields API. Displayed rates may include incentives, change rapidly, and involve smart-contract, depeg, liquidity, and protocol risk. Verify directly with the protocol.</div>
+  </div>
+}
+
 function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light';assets:Asset[];wallet:string;onConnect:()=>void;notify:(s:string)=>void}) {
   const [from,setFrom]=useState('Ethereum')
   const [to,setTo]=useState('Solana')
@@ -720,7 +861,7 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
     setExecuting(true);setQuoteError('');setExecutionStatus('Preparing source transaction…')
     try{
       const result=await executeLifiQuote({provider,wallet,quote,quotedAt,fromSymbol:quoteTokens.from.symbol,toSymbol:quoteTokens.to.symbol,amount,onStatus:setExecutionStatus})
-      setExecutionStatus(`${result.status} · ${result.txHash}`);notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
+      setExecutionStatus(`${result.status} · ${result.txHash}`);recordPioSwapTransaction({ hash: result.txHash, fromSymbol: quoteTokens.from.symbol, toSymbol: quoteTokens.to.symbol, amount, chain: `Cross-chain · ${from} → ${to}`, status: result.status });notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
     }catch(e){setQuoteError(e instanceof Error?e.message:'Bridge transaction could not be completed.');setExecutionStatus('')}
     finally{setExecuting(false)}
   }
@@ -747,98 +888,57 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
   </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Bridge review</strong></div><p>Read the destination address, minimum receive and fee estimates. When the source is EVM, the source transaction is signed in your injected wallet; non-EVM source routes use the compatible LI.FI wallet panel.</p><ul><li><Check size={14}/> Provider route and fees</li><li><Check size={14}/> Destination address confirmation</li><li><Check size={14}/> Source-chain receipt</li><li><Check size={14}/> Destination settlement status</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO is not included until its official token contract and decimals are verified.</p><span className="pill warning">Not tradable yet</span></div></aside></div></div>
 }
 
-const referralRegistryAbi = [
-  { type:'function', name:'register', stateMutability:'nonpayable', inputs:[], outputs:[] },
-  { type:'function', name:'bindReferrer', stateMutability:'nonpayable', inputs:[{name:'referrer',type:'address'}], outputs:[] },
-  { type:'function', name:'referrerOf', stateMutability:'view', inputs:[{name:'user',type:'address'}], outputs:[{name:'',type:'address'}] },
-  { type:'function', name:'referralCount', stateMutability:'view', inputs:[{name:'referrer',type:'address'}], outputs:[{name:'',type:'uint256'}] },
-  { type:'function', name:'isRegistered', stateMutability:'view', inputs:[{name:'user',type:'address'}], outputs:[{name:'',type:'bool'}] },
-] as const
-
-type ReferralEthereumProvider = { request:(args:{method:string;params?:unknown[]})=>Promise<unknown> }
-const referralRegistryAddress = (import.meta.env.VITE_REFERRAL_REGISTRY_ADDRESS || '').trim()
-
-
 function ReferralProgram({wallet,notify}:{wallet:string;notify:(s:string)=>void}) {
-  const [refCount,setRefCount]=useState('—')
-  const [boundReferrer,setBoundReferrer]=useState('')
-  const [registered,setRegistered]=useState(false)
-  const [pending,setPending]=useState(false)
+  const [fee,setFee]=useState('100')
   const [copied,setCopied]=useState(false)
-  const [incomingRef,setIncomingRef]=useState('')
-  const [status,setStatus]=useState('')
+  const [referrer,setReferrer]=useState('')
+  const [applied,setApplied]=useState(false)
+  const splits=[{label:'Platform treasury',pct:50,detail:'Protocol operations, security and development'},{label:'Liquidity provider',pct:30,detail:'Liquidity provider reward allocation'},{label:'Direct LP referrer · L1',pct:10,detail:'Wallet that referred the liquidity provider'},{label:'Level 2',pct:5,detail:'Upstream referrer in the LP referral tree'},{label:'Level 3',pct:3,detail:'Third referral level'},{label:'Level 4',pct:2,detail:'Fourth referral level'}]
+  const total=Number(fee)||0
+  const fmt=(n:number)=>n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:4})
   const link=wallet?`${window.location.origin}/?ref=${wallet}`:''
-  const provider=(window as Window & {ethereum?:ReferralEthereumProvider}).ethereum
-  const contractReady=Boolean(/^0x[a-fA-F0-9]{40}$/.test(referralRegistryAddress))
-
   useEffect(()=>{
-    const candidate=new URLSearchParams(window.location.search).get('ref')||''
-    if(/^0x[a-fA-F0-9]{40}$/.test(candidate)&&candidate.toLowerCase()!==wallet.toLowerCase()) setIncomingRef(candidate)
+    const params=new URLSearchParams(window.location.search),incoming=params.get('ref')||params.get('lp-ref')
+    if(!incoming||!/^0x[a-fA-F0-9]{40}$/.test(incoming))return
+    if(wallet&&incoming.toLowerCase()===wallet.toLowerCase())return
+    const existing=localStorage.getItem('pioswap-referrer')
+    if(!existing){localStorage.setItem('pioswap-referrer',incoming.toLowerCase());localStorage.setItem('pioswap-referral-attributed-at',String(Date.now()));setReferrer(incoming.toLowerCase())}
+    else setReferrer(existing)
   },[wallet])
-
-  const readContract=async (functionName:'referrerOf'|'referralCount'|'isRegistered',args:string[]=[]):Promise<unknown>=>{
-    if(!provider||!contractReady) throw new Error('Referral registry is not configured. Set VITE_REFERRAL_REGISTRY_ADDRESS after deployment.')
-    const data=encodeFunctionData({abi:referralRegistryAbi,functionName,args:args as never})
-    const result=await provider.request({method:'eth_call',params:[{to:referralRegistryAddress,data},'latest']}) as `0x${string}`
-    return decodeFunctionResult({abi:referralRegistryAbi,functionName,data:result,args:args as never})
+  const savedReferrer=referrer||localStorage.getItem('pioswap-referrer')||''
+  async function applyReferral(){
+    const value=referrer.trim()
+    if(!/^0x[a-fA-F0-9]{40}$/.test(value)){notify('Enter a valid EVM wallet address.');return}
+    if(wallet&&value.toLowerCase()===wallet.toLowerCase()){notify('Self-referral is not allowed.');return}
+    if(localStorage.getItem('pioswap-referrer')){notify('Referral attribution is already bound in this browser and cannot be overwritten.');return}
+    const env=(import.meta as ImportMeta & {env?:Record<string,string|undefined>}).env||{}
+    const distributor=String(env.VITE_PIO_REFERRAL_DISTRIBUTOR_ADDRESS||'').trim()
+    const requiredChain=Number(env.VITE_REFERRAL_CHAIN_ID||env.VITE_EVM_CHAIN_ID||0)
+    if(distributor && isViemAddress(distributor)){
+      if(!wallet){notify('Connect the wallet that is being referred before binding on-chain.');return}
+      const provider=(window as Window & {ethereum?:{request:(args:{method:string;params?:unknown[]})=>Promise<unknown>}}).ethereum
+      if(!provider){notify('No injected EVM wallet detected.');return}
+      try{
+        if(requiredChain>0){const actual=Number(BigInt(String(await provider.request({method:'eth_chainId'}))));if(actual!==requiredChain){await provider.request({method:'wallet_switchEthereumChain',params:[{chainId:`0x${requiredChain.toString(16)}`}]})}}
+        const data=encodeFunctionData({abi:[{type:'function',name:'bindReferrer',stateMutability:'nonpayable',inputs:[{name:'referrer',type:'address'}],outputs:[]}],functionName:'bindReferrer',args:[value as `0x${string}`]})
+        const hash=await provider.request({method:'eth_sendTransaction',params:[{from:wallet,to:distributor,data}]})
+        if(typeof hash!=='string'||!/^0x[0-9a-fA-F]{64}$/.test(hash))throw new Error('Wallet did not return a transaction hash.')
+        for(let i=0;i<40;i++){const receipt=await provider.request({method:'eth_getTransactionReceipt',params:[hash]}).catch(()=>null) as {status?:string}|null;if(receipt){if(receipt.status==='0x0')throw new Error('The on-chain referral binding reverted.');break}await new Promise(resolve=>window.setTimeout(resolve,1500));if(i===39)throw new Error(`Referral bind submitted (${hash.slice(0,10)}…) but is still pending. Check the explorer before retrying.`)}
+        localStorage.setItem('pioswap-referrer',value.toLowerCase());localStorage.setItem('pioswap-referral-attributed-at',String(Date.now()));setApplied(true);notify('On-chain referrer binding confirmed. Fee payouts still require the swap-fee collector to call the distributor contract.')
+      }catch(e){notify(e instanceof Error?e.message:'Could not bind referrer on-chain.');return}
+      return
+    }
+    localStorage.setItem('pioswap-referrer',value.toLowerCase());localStorage.setItem('pioswap-referral-attributed-at',String(Date.now()));setApplied(true);notify('Referral attribution saved locally only. Add VITE_PIO_REFERRAL_DISTRIBUTOR_ADDRESS and VITE_REFERRAL_CHAIN_ID for on-chain binding.')
   }
-  const refresh=async()=>{
-    if(!wallet||!contractReady) return
-    try{
-      const [ref,count,isReg]=await Promise.all([
-        readContract('referrerOf',[wallet]),readContract('referralCount',[wallet]),readContract('isRegistered',[wallet])
-      ])
-      setBoundReferrer(String(ref)==='0x0000000000000000000000000000000000000000'?'':String(ref))
-      setRefCount(String(count));setRegistered(Boolean(isReg))
-    }catch(e){setStatus(e instanceof Error?e.message:'Could not read referral registry.')}
-  }
-  useEffect(()=>{void refresh()},[wallet,contractReady])
-
-  const sendContract=async(functionName:'register'|'bindReferrer',args:[]|[string])=>{
-    if(!wallet){notify('Connect your wallet first.');return}
-    if(!provider){notify('No injected wallet found.');return}
-    if(!contractReady){notify('Referral registry contract is not configured yet.');return}
-    setPending(true);setStatus('Waiting for wallet confirmation…')
-    try{
-      const data=encodeFunctionData({abi:referralRegistryAbi,functionName,args:args as never})
-      const hash=await provider.request({method:'eth_sendTransaction',params:[{from:wallet,to:referralRegistryAddress,data}]}) as string
-      setStatus(`Transaction submitted: ${hash}`);notify('Referral transaction submitted. Waiting for confirmation…')
-      const chainId=await provider.request({method:'eth_chainId'}) as string
-      const rpcUrl=import.meta.env.VITE_REFERRAL_RPC_URL || ''
-      // If a public RPC is configured, wait for the receipt and refresh the on-chain state.
-      if(rpcUrl){
-        let receipt:unknown=null
-        for(let i=0;i<60;i++){
-          try{const r=await fetch(rpcUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getTransactionReceipt',params:[hash]})});const j=await r.json() as {result?:unknown};receipt=j.result;if(receipt)break}catch{}
-          await new Promise(r=>setTimeout(r,2500))
-        }
-        if(receipt){setStatus(`Confirmed on chain ${chainId}: ${hash}`);notify('Referral transaction confirmed.');await refresh()}
-        else {setStatus(`Submitted on chain ${chainId}. Receipt not confirmed yet; refresh later.`)}
-      }else{setStatus(`Submitted: ${hash}. Configure VITE_REFERRAL_RPC_URL to auto-check confirmation.`)}
-    }catch(e){const msg=e instanceof Error?e.message:'Referral transaction failed.';setStatus(msg);notify(msg)}
-    finally{setPending(false)}
-  }
-
-  const copyLink=async()=>{
-    if(!link)return
-    try{await navigator.clipboard.writeText(link);setCopied(true);notify('Referral link copied.');window.setTimeout(()=>setCopied(false),1800)}
-    catch{notify('Could not copy automatically. Select and copy the referral link.')}
-  }
-  const registerAndBind=async()=>{
-    if(!incomingRef){notify('No valid referral address was found in this link.');return}
-    if(boundReferrer){notify('This wallet already has a referrer bound; it cannot be changed.');return}
-    await sendContract('bindReferrer',[incomingRef])
-  }
-
-  return <div className="page-content"><PageHeader eyebrow="GROW / REFERRALS" title="Grow together. Refer transparently." description="Create a shareable referral link and bind referrals on-chain. Referral registration works independently of platform fees; fee rewards will be added later." right={<span className={`pill ${contractReady?'success':'warning'}`}>{contractReady?'Registry configured':'Contract setup required'}</span>}/>
-    {!contractReady&&<div className="panel" style={{padding:18,marginBottom:16}}><strong>Referral registry not deployed/configured yet</strong><p style={{margin:'8px 0 0',color:'var(--muted)'}}>Deploy <code>src/contracts/PioReferralRegistry.sol</code> to the target EVM chain, then set <code>VITE_REFERRAL_REGISTRY_ADDRESS</code> and rebuild. Until then, this page will not pretend referral tracking is live.</p></div>}
-    <div className="referral-grid"><div className="panel referral-link-card"><div className="eyebrow">YOUR REFERRAL LINK</div><h3>Invite your community.</h3><p>{wallet?'Share your unique wallet-based referral URL. New users can bind your address once on-chain.':'Connect an EVM wallet to create your referral link.'}</p><div className="referral-link-field" style={{overflowWrap:'anywhere'}}>{link||'Connect wallet to generate a link'}</div><button className="secondary-button full" disabled={!link} onClick={()=>void copyLink()}><Copy size={15}/>{copied?'Copied':'Copy referral link'}</button><div className="fee-note" style={{marginTop:12}}><ShieldCheck size={15}/> No platform fee or reward payout is enabled in this release.</div></div>
-    <div className="panel referral-calculator"><div className="eyebrow">ON-CHAIN REFERRAL STATUS</div><h3>Your referral dashboard</h3><div className="calculator-list"><div><span>Registered</span><strong>{registered?'Yes':'No'}</strong></div><div><span>Verified direct referrals</span><strong>{refCount}</strong></div><div><span>Bound referrer</span><strong style={{fontSize:12}}>{boundReferrer?fmtAddress(boundReferrer):'None'}</strong></div><div><span>Rewards / claimable</span><strong>Disabled</strong></div></div><button className="primary-button full" disabled={!wallet||!contractReady||pending||registered} onClick={()=>void sendContract('register',[])}>{pending?'Confirm in wallet…':registered?'Wallet registered':'Register wallet'}</button><button className="secondary-button full" style={{marginTop:8}} disabled={!wallet||!contractReady} onClick={()=>void refresh()}>Refresh on-chain status</button></div></div>
-    {incomingRef&&<div className="panel" style={{padding:18,marginTop:16}}><div className="eyebrow">YOU WERE INVITED</div><h3>Bind your referrer</h3><p>Referrer wallet: <strong>{fmtAddress(incomingRef)}</strong>. This binding is one-time and irreversible on this registry contract.</p><button className="primary-button" disabled={!wallet||!contractReady||pending||Boolean(boundReferrer)} onClick={()=>void registerAndBind()}>{pending?'Confirm in wallet…':boundReferrer?'Referrer already bound':'Bind referrer on-chain'}</button></div>}
-    {status&&<div className="panel" style={{padding:14,marginTop:16,overflowWrap:'anywhere'}}><strong>Transaction status</strong><p style={{margin:'6px 0 0'}}>{status}</p></div>}
-    <div className="panel referral-rules" style={{marginTop:16}}><h3>Referral functionality in this release</h3><div className="explainer-grid"><div><strong>On-chain binding</strong><p>Each wallet can bind one referrer once. Self-referrals are rejected by the contract.</p></div><div><strong>Auditable attribution</strong><p>Registry events and referral counts are public and verifiable on the deployed chain.</p></div><div><strong>Rewards later</strong><p>Fee collection and reward payouts are deliberately disabled now. A separate audited reward contract can be added when platform fees are introduced.</p></div></div></div>
+  return <div className="page-content"><PageHeader eyebrow="GROW / REFERRALS" title="Grow liquidity. Share the upside." description="Generate a shareable referral link, capture referral attribution in this browser, and review the proposed fee allocation." right={<span className="pill warning">Fee routing setup pending</span>}/>
+    <div className="referral-hero panel"><div className="referral-glow"/><div className="eyebrow">LIQUIDITY PROVIDER REFERRAL PROGRAM</div><h2>Bring the network.<br/><em>Share the upside.</em></h2><p>Your wallet address can generate a referral URL. When a visitor opens it, their referrer is stored locally. This is attribution groundwork—not verified trade tracking or a claimable reward balance.</p><div className="referral-actions"><button className="primary-button" disabled={!link} onClick={()=>{void navigator.clipboard?.writeText(link);setCopied(true);notify('Referral link copied.')}}>{wallet?'Copy my referral link':'Connect wallet to create link'} <Copy size={15}/></button><span className="safe-note"><ShieldCheck size={14}/> Rewards are not currently paid</span></div></div>
+    <div className="referral-grid"><div className="panel referral-split-panel"><div className="panel-top"><div><div className="eyebrow">PROPOSED FEE SPLIT</div><h3>Where each fee goes</h3></div><span className="pill neutral">100% total</span></div>{splits.map((s,i)=><div className="split-row" key={s.label}><div className="split-rank">{String(i+1).padStart(2,'0')}</div><div className="split-copy"><strong>{s.label}</strong><span>{s.detail}</span><div className="split-bar"><span style={{width:`${s.pct*2}%`}}/></div></div><strong className="split-pct">{s.pct}%</strong></div>)}<div className="fee-note"><ShieldCheck size={15}/> The 50/30/10/5/3/2 percentages split eligible protocol trading fees, not liquidity deposits or LP principal. On-chain payout only occurs when the actual swap-fee collector calls the distributor contract.</div></div>
+    <div className="referral-side"><div className="panel referral-calculator"><div className="eyebrow">FEE DISTRIBUTION CALCULATOR</div><h3>See a sample fee</h3><label>Example total fee (USD)</label><input className="text-input" value={fee} onChange={e=>setFee(e.target.value.replace(/[^0-9.]/g,''))} inputMode="decimal"/><div className="calculator-list">{splits.map(s=><div key={s.label}><span>{s.label}</span><strong>{fmt(total*s.pct/100)}</strong></div>)}</div><div className="calculator-total"><span>Total allocated</span><strong>{fmt(splits.reduce((sum,s)=>sum+total*s.pct/100,0))}</strong></div></div>
+    <div className="panel referral-link-card"><div className="eyebrow">REFERRAL ATTRIBUTION</div><h3>{savedReferrer?'Referrer captured':'Bind a referrer'}</h3><p>{savedReferrer?'This browser has a referral wallet stored. Attribution is local only until backend/contract tracking is deployed.':'If you were invited, enter the referrer wallet address before trading. This cannot be changed once stored in this browser.'}</p><div className="referral-link-field">{savedReferrer||'0x referrer wallet address'}</div>{!savedReferrer&&<><input className="text-input" value={referrer} onChange={e=>setReferrer(e.target.value)} placeholder="0x…"/><button className="secondary-button full" onClick={applyReferral}><Check size={15}/> Save referral attribution</button></>}<small>A local referrer label is not proof of a global referral. Contract binding is available when VITE_PIO_REFERRAL_DISTRIBUTOR_ADDRESS is configured; payouts still need the live fee-collection path.</small></div></div></div>
+    <div className="panel referral-rules"><h3>Reward activation requirements</h3><div className="explainer-grid"><div><strong>Eligible activity</strong><p>Define eligible protocol fees and prevent self-referrals or sybil abuse.</p></div><div><strong>Persistent tracking</strong><p>Server-side or on-chain referral binding is required across browsers and devices.</p></div><div><strong>Reward payouts</strong><p>Implement auditable fee accounting and a secure claim contract before displaying earnings.</p></div></div></div>
   </div>
 }
+
 function Portfolio({privacy,setPrivacy,wallet,assets,onConnect}:{privacy:boolean;setPrivacy:(b:boolean)=>void;wallet:string;assets:Asset[];onConnect:()=>void}) {
   type NativeHolding={chain:string;symbol:string;balance:string;usd:number|null;status:string}
   const [holdings,setHoldings]=useState<NativeHolding[]>([])
@@ -891,7 +991,7 @@ function Analytics() {
 }
 function SecurityCenter() {
   const checks=[['Wallet signing','External wallet confirmation required'],['PIO token identity','Pending official token details'],['Market-data source','Not configured'],['Transaction simulation','Not configured'],['Incident status','No status provider connected']]
-  return <div className="page-content"><PageHeader eyebrow="DISCOVER / SECURITY" title="Know before you sign." description="Security controls must reflect actual checks, not a decorative safety score."/><div className="security-banner"><div className="security-banner-icon"><ShieldCheck size={24}/></div><div><strong>Trading is disabled in this preview.</strong><p>No claim of production security or audit status is made.</p></div><span className="pill warning">Preview</span></div><div className="panel checks-panel">{checks.map(([t,d])=><div className="check-row" key={t}><div className="check-row-icon"><FileCheck2 size={17}/></div><div><strong>{t}</strong><span>{d}</span></div><span className="pill neutral">Pending</span></div>)}</div><div className="panel explainer"><h3>Before launch</h3><p>Enable execution only after token and network verification, quote validation, transaction-target checks, simulation where supported, independent security review, and critical-path tests are complete.</p></div></div>
+  return <div className="page-content"><PageHeader eyebrow="DISCOVER / SECURITY" title="Know before you sign." description="Security controls must reflect actual checks, not a decorative safety score."/><div className="security-banner"><div className="security-banner-icon"><ShieldCheck size={24}/></div><div><strong>PIO-specific contracts are not configured.</strong><p>Provider routes for other assets may be available, but no audit or production-security claim is made.</p></div><span className="pill warning">PIO setup pending</span></div><div className="panel checks-panel">{checks.map(([t,d])=><div className="check-row" key={t}><div className="check-row-icon"><FileCheck2 size={17}/></div><div><strong>{t}</strong><span>{d}</span></div><span className="pill neutral">Pending</span></div>)}</div><div className="panel explainer"><h3>Before launch</h3><p>Enable execution only after token and network verification, quote validation, transaction-target checks, simulation where supported, independent security review, and critical-path tests are complete.</p></div></div>
 }
 function SettingsPage({theme,setTheme,settings,setSettings,notify}:{theme:'dark'|'light';setTheme:(t:'dark'|'light')=>void;settings:{alerts:boolean;slippage:string;compact:boolean};setSettings:(s:{alerts:boolean;slippage:string;compact:boolean})=>void;notify:(s:string)=>void}) {
   return <div className="page-content"><PageHeader eyebrow="PREFERENCES" title="Make it yours." description="Preferences stay on this device in this version."/><div className="settings-layout"><div className="panel settings-panel"><h3>Appearance</h3><p>Choose the surface that feels right.</p><div className="theme-choices"><button className={theme==='dark'?'selected':''} onClick={()=>setTheme('dark')}><span className="theme-swatch dark-swatch"/>Dark graphite {theme==='dark'&&<Check size={15}/>}</button><button className={theme==='light'?'selected':''} onClick={()=>setTheme('light')}><span className="theme-swatch light-swatch"/>Warm ivory {theme==='light'&&<Check size={15}/>}</button></div><div className="setting-row"><div><strong>Compact data tables</strong><span>Reduce vertical spacing in dense market views.</span></div><button className={`switch ${settings.compact?'on':''}`} onClick={()=>setSettings({...settings,compact:!settings.compact})} aria-label="Toggle compact tables"><span/></button></div><div className="setting-row"><div><strong>Asset alerts</strong><span>Opt in to alerts when a notification service is available.</span></div><button className={`switch ${settings.alerts?'on':''}`} onClick={()=>setSettings({...settings,alerts:!settings.alerts})} aria-label="Toggle asset alerts"><span/></button></div><div className="setting-row"><div><strong>Default slippage</strong><span>Applied only as a preference; execution is not enabled.</span></div><select className="small-select" value={settings.slippage} onChange={e=>setSettings({...settings,slippage:e.target.value})}><option value="0.10">0.10%</option><option value="0.50">0.50%</option><option value="1.00">1.00%</option></select></div><button className="secondary-button" onClick={()=>notify('Preferences are saved locally in this browser.')}>Save preferences <Check size={15}/></button></div><div className="panel settings-panel"><h3>Privacy & wallet</h3><p>Connection does not grant custody or authorize transactions.</p><div className="setting-row"><div><strong>Local-first preferences</strong><span>No account or cloud sync is configured.</span></div><span className="pill neutral">On device</span></div><div className="setting-row"><div><strong>Seed phrase storage</strong><span>PioSwap never requests or stores recovery phrases.</span></div><ShieldCheck size={19}/></div><div className="setting-row"><div><strong>Network preferences</strong><span>Network support will be enabled after validation.</span></div><span className="pill neutral">Pending</span></div></div></div></div>
