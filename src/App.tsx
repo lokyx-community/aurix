@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-
 import LifiTradeWidget from './LifiTradeWidget'
 import { AdBanner, AnalyticsPage, LimitOrdersPage, LiquidityPage, StakingPage, recordPioSwapTransaction } from './OnchainFeatures'
 import { EVM_CHAINS, type Eip1193Provider, type LifiQuote, type ProviderToken, executeLifiQuote, fetchLifiTokens, formatUnitsSafe, getLifiQuote, isEvmChainId, parseUnitsSafe } from './integrations'
@@ -304,7 +303,6 @@ function App() {
       </div>
     </header>
 
-    <AdBanner notify={notify} />
 
     {searchOpen && <div className="search-popover"><Search size={17}/><input autoFocus placeholder="Search tokens or pages…" value={query} onChange={e => setQuery(e.target.value)}/><button className="icon-button" onClick={() => {setSearchOpen(false);setQuery('')}}><X size={16}/></button><div className="search-results">{filteredAssets.slice(0,5).map(a=><button key={a.symbol} onClick={()=>{navTo('Token Explorer');setQuery(a.symbol)}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}</small></span><ArrowRight size={15}/></button>)}</div></div>}
 
@@ -348,7 +346,7 @@ function App() {
       {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. PioSwap will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Connection only. Trading is not enabled in this preview.</div></> :
       <><div className="modal-symbol"><ShieldCheck size={24}/></div><h2>PIO setup required</h2><p>PIO-specific staking, liquidity and referral actions stay blocked until verified token and chain contracts are configured. Other swap or bridge routes may be available through their provider and still require you to review and confirm the exact transaction in your wallet.</p><button className="primary-button full" onClick={()=>setModal('none')}>Got it <Check size={16}/></button></>}
     </div></div>}
-    <footer className="footer"><span>© 2026 PioSwap</span><span>Public market data · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview · verify contracts before PIO transactions</span></footer>
+    <footer className="footer"><span>© 2026 PioSwap</span><span>Public market data · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview · verify contracts before PIO transactions</span><AdBanner notify={notify}/></footer>
   </div>
 }
 

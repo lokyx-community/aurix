@@ -78,7 +78,7 @@ export function AdBanner({ notify }: { notify: (message: string) => void }) {
   return <aside className="ad-banner" aria-label="Sponsored placement">
     <div className="ad-banner-art" aria-hidden="true">{image ? <img src={image} alt=""/> : <div className="ad-orbit"><span/><span/><span/></div>}</div>
     <div className="ad-banner-copy"><div className="ad-eyebrow"><span>{url ? 'SPONSORED' : 'AD SPACE'}</span><span className="ad-dot"/> {url ? 'PARTNER SPOTLIGHT' : 'AVAILABLE PLACEMENT'}</div><strong>{title}</strong><p>{copy}</p></div>
-    {url ? <a className="ad-cta" href={url} target="_blank" rel="noreferrer">Explore <ExternalLink size={14}/></a> : <button className="ad-cta" onClick={() => notify('The banner slot is ready. Add VITE_AD_BANNER_TITLE, VITE_AD_BANNER_COPY, VITE_AD_BANNER_URL and optionally VITE_AD_BANNER_IMAGE_URL in .env.local to publish a real campaign.')}>Ad settings <ArrowRight size={14}/></button>}
+    {url ? <a className="ad-cta" href={url} target="_blank" rel="noreferrer">Explore <ExternalLink size={14}/></a> : null}
     <button className="ad-close" aria-label="Dismiss sponsored banner" onClick={() => setDismissed(true)}><X size={14}/></button>
   </aside>
 }
