@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import LifiTradeWidget from './LifiTradeWidget'
+import { encodeFunctionData, decodeFunctionResult } from 'viem'
 import { EVM_CHAINS, type Eip1193Provider, type LifiQuote, type ProviderToken, executeLifiQuote, fetchLifiTokens, formatUnitsSafe, getLifiQuote, isEvmChainId, parseUnitsSafe } from './integrations'
 import {
   Activity, ArrowDownUp, ArrowLeftRight, ArrowRight, Bell, BookOpen, Check, ChevronDown,
@@ -746,22 +747,98 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
   </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Bridge review</strong></div><p>Read the destination address, minimum receive and fee estimates. When the source is EVM, the source transaction is signed in your injected wallet; non-EVM source routes use the compatible LI.FI wallet panel.</p><ul><li><Check size={14}/> Provider route and fees</li><li><Check size={14}/> Destination address confirmation</li><li><Check size={14}/> Source-chain receipt</li><li><Check size={14}/> Destination settlement status</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO is not included until its official token contract and decimals are verified.</p><span className="pill warning">Not tradable yet</span></div></aside></div></div>
 }
 
+const referralRegistryAbi = [
+  { type:'function', name:'register', stateMutability:'nonpayable', inputs:[], outputs:[] },
+  { type:'function', name:'bindReferrer', stateMutability:'nonpayable', inputs:[{name:'referrer',type:'address'}], outputs:[] },
+  { type:'function', name:'referrerOf', stateMutability:'view', inputs:[{name:'user',type:'address'}], outputs:[{name:'',type:'address'}] },
+  { type:'function', name:'referralCount', stateMutability:'view', inputs:[{name:'referrer',type:'address'}], outputs:[{name:'',type:'uint256'}] },
+  { type:'function', name:'isRegistered', stateMutability:'view', inputs:[{name:'user',type:'address'}], outputs:[{name:'',type:'bool'}] },
+] as const
+
+type ReferralEthereumProvider = { request:(args:{method:string;params?:unknown[]})=>Promise<unknown> }
+const referralRegistryAddress = (import.meta.env.VITE_REFERRAL_REGISTRY_ADDRESS || '').trim()
+
+
 function ReferralProgram({wallet,notify}:{wallet:string;notify:(s:string)=>void}) {
-  const [address,setAddress]=useState('')
-  const [fee,setFee]=useState('100')
+  const [refCount,setRefCount]=useState('—')
+  const [boundReferrer,setBoundReferrer]=useState('')
+  const [registered,setRegistered]=useState(false)
+  const [pending,setPending]=useState(false)
   const [copied,setCopied]=useState(false)
-  const splits=[{label:'Platform treasury',pct:50,detail:'Protocol operations, security and development'},{label:'Liquidity provider',pct:30,detail:'Liquidity provider reward allocation'},{label:'Direct LP referrer · L1',pct:10,detail:'Wallet that referred the liquidity provider'},{label:'Level 2',pct:5,detail:'Upstream referrer in the LP referral tree'},{label:'Level 3',pct:3,detail:'Third referral level'},{label:'Level 4',pct:2,detail:'Fourth referral level'}]
-  const total=Number(fee)||0
-  const fmt=(n:number)=>n.toLocaleString('en-US',{style:'currency',currency:'USD',maximumFractionDigits:4})
-  const link=wallet?`${window.location.origin}/?lp-ref=${wallet}`:''
-  return <div className="page-content"><PageHeader eyebrow="GROW / LIQUIDITY REFERRALS" title="Grow liquidity. Share the upside." description="A transparent proposed fee allocation for liquidity providers and the people who bring them in." right={<span className="pill warning">Design preview · not on-chain</span>}/>
-    <div className="referral-hero panel"><div className="referral-glow"/><div className="eyebrow">LIQUIDITY PROVIDER REFERRAL PROGRAM</div><h2>100% of the fee,<br/><em>accounted for.</em></h2><p>Every fee share is visible before implementation. This page models the proposed distribution; no rewards are currently paid or tracked on-chain.</p><div className="referral-actions"><button className="primary-button" onClick={()=>wallet?notify('Referral tracking is not deployed yet. This is a preview link only.'):notify('Connect your wallet to preview your referral link.')}>{wallet?'Preview my referral link':'Connect wallet'} <ArrowRight size={15}/></button><span className="safe-note"><ShieldCheck size={14}/> No referral earnings are claimed</span></div></div>
-    <div className="referral-grid"><div className="panel referral-split-panel"><div className="panel-top"><div><div className="eyebrow">PROPOSED FEE SPLIT</div><h3>Where each fee goes</h3></div><span className="pill neutral">100% total</span></div>{splits.map((s,i)=><div className="split-row" key={s.label}><div className="split-rank">{String(i+1).padStart(2,'0')}</div><div className="split-copy"><strong>{s.label}</strong><span>{s.detail}</span><div className="split-bar"><span style={{width:`${s.pct*2}%`}}/></div></div><strong className="split-pct">{s.pct}%</strong></div>)}<div className="fee-note"><ShieldCheck size={15}/> The split totals 100% of the defined fee pool. Smart-contract accounting, rounding rules, eligibility, and payout gas costs must be specified before deployment.</div></div>
-    <div className="referral-side"><div className="panel referral-calculator"><div className="eyebrow">FEE DISTRIBUTION CALCULATOR</div><h3>See a sample fee</h3><label>Example total fee (USD)</label><input className="text-input" value={fee} onChange={e=>setFee(e.target.value.replace(/[^0-9.]/g,''))} inputMode="decimal"/><div className="calculator-list">{splits.map(s=><div key={s.label}><span>{s.label}</span><strong>{fmt(total*s.pct/100)}</strong></div>)}</div><div className="calculator-total"><span>Total allocated</span><strong>{fmt(splits.reduce((sum,s)=>sum+total*s.pct/100,0))}</strong></div></div><div className="panel referral-link-card"><div className="eyebrow">YOUR REFERRAL LINK</div><h3>Bring quality liquidity.</h3><p>{wallet?'A preview link is generated from your connected public wallet address.':'Connect a wallet to preview a referral link.'}</p><div className="referral-link-field">{link||'Connect wallet to generate link'}</div><button className="secondary-button full" disabled={!link} onClick={()=>{void navigator.clipboard?.writeText(link);setCopied(true);notify('Preview referral link copied. Tracking is not active yet.')}}><Copy size={15}/>{copied?'Copied':'Copy preview link'}</button><small>Referral attribution, anti-sybil rules and payouts require backend and contract implementation.</small></div></div></div>
-    <div className="panel referral-rules"><h3>Rules that must be locked before launch</h3><div className="explainer-grid"><div><strong>Eligible fees</strong><p>Define whether the fee pool is protocol fees only or also includes LP and network costs. Network gas should not be silently shared.</p></div><div><strong>Referral tree</strong><p>Use immutable or governed referral binding, with self-referral prevention and explicit handling of missing levels.</p></div><div><strong>Accounting & claims</strong><p>Track accrued amounts on-chain or in auditable backend records. Never display simulated rewards as withdrawable balances.</p></div></div></div>
+  const [incomingRef,setIncomingRef]=useState('')
+  const [status,setStatus]=useState('')
+  const link=wallet?`${window.location.origin}/?ref=${wallet}`:''
+  const provider=(window as Window & {ethereum?:ReferralEthereumProvider}).ethereum
+  const contractReady=Boolean(/^0x[a-fA-F0-9]{40}$/.test(referralRegistryAddress))
+
+  useEffect(()=>{
+    const candidate=new URLSearchParams(window.location.search).get('ref')||''
+    if(/^0x[a-fA-F0-9]{40}$/.test(candidate)&&candidate.toLowerCase()!==wallet.toLowerCase()) setIncomingRef(candidate)
+  },[wallet])
+
+  const readContract=async (functionName:'referrerOf'|'referralCount'|'isRegistered',args:string[]=[]):Promise<unknown>=>{
+    if(!provider||!contractReady) throw new Error('Referral registry is not configured. Set VITE_REFERRAL_REGISTRY_ADDRESS after deployment.')
+    const data=encodeFunctionData({abi:referralRegistryAbi,functionName,args:args as never})
+    const result=await provider.request({method:'eth_call',params:[{to:referralRegistryAddress,data},'latest']}) as `0x${string}`
+    return decodeFunctionResult({abi:referralRegistryAbi,functionName,data:result,args:args as never})
+  }
+  const refresh=async()=>{
+    if(!wallet||!contractReady) return
+    try{
+      const [ref,count,isReg]=await Promise.all([
+        readContract('referrerOf',[wallet]),readContract('referralCount',[wallet]),readContract('isRegistered',[wallet])
+      ])
+      setBoundReferrer(String(ref)==='0x0000000000000000000000000000000000000000'?'':String(ref))
+      setRefCount(String(count));setRegistered(Boolean(isReg))
+    }catch(e){setStatus(e instanceof Error?e.message:'Could not read referral registry.')}
+  }
+  useEffect(()=>{void refresh()},[wallet,contractReady])
+
+  const sendContract=async(functionName:'register'|'bindReferrer',args:[]|[string])=>{
+    if(!wallet){notify('Connect your wallet first.');return}
+    if(!provider){notify('No injected wallet found.');return}
+    if(!contractReady){notify('Referral registry contract is not configured yet.');return}
+    setPending(true);setStatus('Waiting for wallet confirmation…')
+    try{
+      const data=encodeFunctionData({abi:referralRegistryAbi,functionName,args:args as never})
+      const hash=await provider.request({method:'eth_sendTransaction',params:[{from:wallet,to:referralRegistryAddress,data}]}) as string
+      setStatus(`Transaction submitted: ${hash}`);notify('Referral transaction submitted. Waiting for confirmation…')
+      const chainId=await provider.request({method:'eth_chainId'}) as string
+      const rpcUrl=import.meta.env.VITE_REFERRAL_RPC_URL || ''
+      // If a public RPC is configured, wait for the receipt and refresh the on-chain state.
+      if(rpcUrl){
+        let receipt:unknown=null
+        for(let i=0;i<60;i++){
+          try{const r=await fetch(rpcUrl,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({jsonrpc:'2.0',id:1,method:'eth_getTransactionReceipt',params:[hash]})});const j=await r.json() as {result?:unknown};receipt=j.result;if(receipt)break}catch{}
+          await new Promise(r=>setTimeout(r,2500))
+        }
+        if(receipt){setStatus(`Confirmed on chain ${chainId}: ${hash}`);notify('Referral transaction confirmed.');await refresh()}
+        else {setStatus(`Submitted on chain ${chainId}. Receipt not confirmed yet; refresh later.`)}
+      }else{setStatus(`Submitted: ${hash}. Configure VITE_REFERRAL_RPC_URL to auto-check confirmation.`)}
+    }catch(e){const msg=e instanceof Error?e.message:'Referral transaction failed.';setStatus(msg);notify(msg)}
+    finally{setPending(false)}
+  }
+
+  const copyLink=async()=>{
+    if(!link)return
+    try{await navigator.clipboard.writeText(link);setCopied(true);notify('Referral link copied.');window.setTimeout(()=>setCopied(false),1800)}
+    catch{notify('Could not copy automatically. Select and copy the referral link.')}
+  }
+  const registerAndBind=async()=>{
+    if(!incomingRef){notify('No valid referral address was found in this link.');return}
+    if(boundReferrer){notify('This wallet already has a referrer bound; it cannot be changed.');return}
+    await sendContract('bindReferrer',[incomingRef])
+  }
+
+  return <div className="page-content"><PageHeader eyebrow="GROW / REFERRALS" title="Grow together. Refer transparently." description="Create a shareable referral link and bind referrals on-chain. Referral registration works independently of platform fees; fee rewards will be added later." right={<span className={`pill ${contractReady?'success':'warning'}`}>{contractReady?'Registry configured':'Contract setup required'}</span>}/>
+    {!contractReady&&<div className="panel" style={{padding:18,marginBottom:16}}><strong>Referral registry not deployed/configured yet</strong><p style={{margin:'8px 0 0',color:'var(--muted)'}}>Deploy <code>src/contracts/PioReferralRegistry.sol</code> to the target EVM chain, then set <code>VITE_REFERRAL_REGISTRY_ADDRESS</code> and rebuild. Until then, this page will not pretend referral tracking is live.</p></div>}
+    <div className="referral-grid"><div className="panel referral-link-card"><div className="eyebrow">YOUR REFERRAL LINK</div><h3>Invite your community.</h3><p>{wallet?'Share your unique wallet-based referral URL. New users can bind your address once on-chain.':'Connect an EVM wallet to create your referral link.'}</p><div className="referral-link-field" style={{overflowWrap:'anywhere'}}>{link||'Connect wallet to generate a link'}</div><button className="secondary-button full" disabled={!link} onClick={()=>void copyLink()}><Copy size={15}/>{copied?'Copied':'Copy referral link'}</button><div className="fee-note" style={{marginTop:12}}><ShieldCheck size={15}/> No platform fee or reward payout is enabled in this release.</div></div>
+    <div className="panel referral-calculator"><div className="eyebrow">ON-CHAIN REFERRAL STATUS</div><h3>Your referral dashboard</h3><div className="calculator-list"><div><span>Registered</span><strong>{registered?'Yes':'No'}</strong></div><div><span>Verified direct referrals</span><strong>{refCount}</strong></div><div><span>Bound referrer</span><strong style={{fontSize:12}}>{boundReferrer?fmtAddress(boundReferrer):'None'}</strong></div><div><span>Rewards / claimable</span><strong>Disabled</strong></div></div><button className="primary-button full" disabled={!wallet||!contractReady||pending||registered} onClick={()=>void sendContract('register',[])}>{pending?'Confirm in wallet…':registered?'Wallet registered':'Register wallet'}</button><button className="secondary-button full" style={{marginTop:8}} disabled={!wallet||!contractReady} onClick={()=>void refresh()}>Refresh on-chain status</button></div></div>
+    {incomingRef&&<div className="panel" style={{padding:18,marginTop:16}}><div className="eyebrow">YOU WERE INVITED</div><h3>Bind your referrer</h3><p>Referrer wallet: <strong>{fmtAddress(incomingRef)}</strong>. This binding is one-time and irreversible on this registry contract.</p><button className="primary-button" disabled={!wallet||!contractReady||pending||Boolean(boundReferrer)} onClick={()=>void registerAndBind()}>{pending?'Confirm in wallet…':boundReferrer?'Referrer already bound':'Bind referrer on-chain'}</button></div>}
+    {status&&<div className="panel" style={{padding:14,marginTop:16,overflowWrap:'anywhere'}}><strong>Transaction status</strong><p style={{margin:'6px 0 0'}}>{status}</p></div>}
+    <div className="panel referral-rules" style={{marginTop:16}}><h3>Referral functionality in this release</h3><div className="explainer-grid"><div><strong>On-chain binding</strong><p>Each wallet can bind one referrer once. Self-referrals are rejected by the contract.</p></div><div><strong>Auditable attribution</strong><p>Registry events and referral counts are public and verifiable on the deployed chain.</p></div><div><strong>Rewards later</strong><p>Fee collection and reward payouts are deliberately disabled now. A separate audited reward contract can be added when platform fees are introduced.</p></div></div></div>
   </div>
 }
-
 function Portfolio({privacy,setPrivacy,wallet,assets,onConnect}:{privacy:boolean;setPrivacy:(b:boolean)=>void;wallet:string;assets:Asset[];onConnect:()=>void}) {
   type NativeHolding={chain:string;symbol:string;balance:string;usd:number|null;status:string}
   const [holdings,setHoldings]=useState<NativeHolding[]>([])
