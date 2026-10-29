@@ -9,7 +9,7 @@ import {
   CircleHelp, Clock3, Command, Compass, Copy, ExternalLink, Eye, EyeOff, FileCheck2,
   Globe2, Grid2X2, LayoutDashboard, LineChart, LockKeyhole, Menu, MoreHorizontal,
   Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star, TrendingDown, Coins,
-  TrendingUp, Wallet, X, Zap
+  TrendingUp, Wallet, X, Zap, RefreshCw,
 } from 'lucide-react'
 
 type Page = 'Overview' | 'Swap' | 'Markets' | 'Advanced Trading' | 'Limit Orders' | 'Liquidity' | 'Portfolio' | 'Earn' | 'Staking' | 'Cross-Chain' | 'Activity' | 'Token Explorer' | 'Analytics' | 'Security Center' | 'Referral Program' | 'Settings'
