@@ -1,0 +1,20 @@
+PioSwap AI chatbot — free local model setup
+
+1) Install Ollama for your operating system from https://ollama.com/download
+2) Open a terminal and run:
+     ollama pull llama3.2:3b
+   This downloads the model (several GB). Ollama must be running in the background.
+3) In this project folder, copy .env.example to .env.local (or create .env.local with the same contents).
+4) Install project dependencies:
+     npm install
+5) Start PioSwap frontend and chatbot backend together:
+     npm run dev
+6) Open http://localhost:5173
+
+No OpenAI API key or paid API credits are needed. The model runs on your own computer, so
+responses depend on your computer's available memory/CPU. The first response may take a little
+longer while the model loads.
+
+Check backend/model status at http://localhost:3001/api/health
+If the model is not found, run: ollama pull llama3.2:3b
+If Ollama is not running, launch the Ollama app and retry.

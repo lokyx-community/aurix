@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import LifiTradeWidget from './LifiTradeWidget'
+import PioSwapChat from './PioSwapChat'
 import { AdBanner, AnalyticsPage, LimitOrdersPage, LiquidityPage, StakingPage, recordPioSwapTransaction } from './OnchainFeatures'
 import { EVM_CHAINS, type Eip1193Provider, type LifiQuote, type ProviderToken, executeLifiQuote, fetchLifiTokens, formatUnitsSafe, getLifiQuote, isEvmChainId, parseUnitsSafe } from './integrations'
 import { encodeFunctionData, isAddress as isViemAddress } from 'viem'
@@ -8,7 +9,7 @@ import {
   CircleHelp, Clock3, Command, Compass, Copy, ExternalLink, Eye, EyeOff, FileCheck2,
   Globe2, Grid2X2, LayoutDashboard, LineChart, LockKeyhole, Menu, MoreHorizontal,
   Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star, TrendingDown, Coins,
-  TrendingUp, Wallet, X, Zap, RefreshCw,
+  TrendingUp, Wallet, X, Zap
 } from 'lucide-react'
 
 type Page = 'Overview' | 'Swap' | 'Markets' | 'Advanced Trading' | 'Limit Orders' | 'Liquidity' | 'Portfolio' | 'Earn' | 'Staking' | 'Cross-Chain' | 'Activity' | 'Token Explorer' | 'Analytics' | 'Security Center' | 'Referral Program' | 'Settings'
@@ -347,6 +348,7 @@ function App() {
       <><div className="modal-symbol"><ShieldCheck size={24}/></div><h2>PIO setup required</h2><p>PIO-specific staking, liquidity and referral actions stay blocked until verified token and chain contracts are configured. Other swap or bridge routes may be available through their provider and still require you to review and confirm the exact transaction in your wallet.</p><button className="primary-button full" onClick={()=>setModal('none')}>Got it <Check size={16}/></button></>}
     </div></div>}
     <footer className="footer"><span>© 2026 PioSwap</span><span>Public market data · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview · verify contracts before PIO transactions</span><AdBanner notify={notify}/></footer>
+    <PioSwapChat/>
   </div>
 }
 
