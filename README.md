@@ -36,16 +36,16 @@ See `contracts/`. Referral distribution tests are in `contracts/test/PioReferral
 
 The site includes a floating **PioSwap AI** assistant that can answer product questions about swap, cross-chain routes, advanced trading, limit orders, liquidity pools, the referral fee split, staking, Earn, markets/analytics, portfolio, token explorer, supported wallets, and the sponsored banner. It is grounded in a PioSwap-specific system prompt and can handle follow-up questions using recent chat context.
 
-### Configure the AI
+### Configure the AI (Gemini)
 
-1. Create an OpenAI API key in your OpenAI platform account.
-2. Add `OPENAI_API_KEY` to your local `.env.local` file (copied from `.env.example`). Keep it server-only; do not use a `VITE_` prefix or paste it into frontend code.
-3. Add the same `OPENAI_API_KEY` in Vercel → Project → Settings → Environment Variables for the Production, Preview, and Development environments you use.
-4. Optionally set `PIOSWAP_CHAT_MODEL` to a model available to your API account. The default is `gpt-4o-mini`.
-5. Redeploy the Vercel project so the serverless `/api/chat` route receives the environment variables.
-6. Open the site and use the **Ask PioSwap AI** launcher. Try the suggested questions and ask follow-ups.
+1. Create an API key in Google AI Studio.
+2. Copy `.env.example` to `.env.local` for local development and set `GEMINI_API_KEY`.
+3. Set `GEMINI_MODEL=gemini-3.5-flash-lite` (or another model currently available to your Google AI Studio project).
+4. In Vercel → Project → Settings → Environment Variables, add `GEMINI_API_KEY` and `GEMINI_MODEL` for the environments you deploy.
+5. Redeploy the Vercel project so the serverless `/api/chat` route receives the updated variables.
+6. For local development, `npm run dev` starts Vite and the local Express API. Vercel uses the serverless handler at `api/chat.ts`; it does not require `API_PORT`.
 
-The chat API is served from `api/chat.ts` and calls OpenAI from the server. The browser never receives the OpenAI API key. If the key is missing, the chat shows a setup error instead of pretending to answer.
+The API key is read only on the server. Never add a `VITE_` prefix to `GEMINI_API_KEY` and never commit `.env.local`.
 
 ### Important boundaries
 
@@ -56,4 +56,6 @@ For production, configure API billing/usage limits and add rate limiting and mon
 
 ## Gemini AI chatbot
 
-For local chatbot development, copy `.env.example` to `.env.local` and set `GEMINI_API_KEY` from Google AI Studio. The API key is read only by the server; do not put it in frontend variables or commit `.env.local`. Set `GEMINI_MODEL` to a model available to your API key. Free-tier availability, quotas, and terms are determined by Google and may change.
+The local Express handler (`server/chat.js`) and Vercel serverless route (`api/chat.ts`) both use Gemini. The current default is `gemini-3.5-flash-lite`, which Google's current model guide lists as a stable option recommended for new API projects. Free-tier quotas and availability are account- and region-dependent and can change. Check Google's model guide before changing the model:
+https://ai.google.dev/gemini-api/docs/models
+

@@ -8,7 +8,16 @@ export type LifiQuote = {
   transactionRequest?: { from?: string; to: string; data: string; value?: string; gasLimit?: string; gasPrice?: string; chainId?: number };
   tool?: string; toolDetails?: {name?: string; logoURI?: string}; [key: string]: any;
 }
-export type SavedTransaction = { id: string; type: 'swap'|'bridge'; fromChainId: number; toChainId: number; txHash: string; status: string; createdAt: number; fromSymbol?: string; toSymbol?: string; amount?: string; explorer?: string }
+export type SavedTransaction = {
+  id: string; type: 'swap'|'bridge'|'approval'; fromChainId: number; toChainId: number;
+  txHash: string; status: string; createdAt: number; fromSymbol?: string; toSymbol?: string;
+  amount?: string; explorer?: string; fromAddress?: string; recipientAddress?: string;
+  transactionTarget?: string; blockNumber?: string; gasUsed?: string;
+  effectiveGasPrice?: string; actualGasFeeWei?: string; receiptStatus?: 'success'|'failed';
+  estimatedToAmount?: string; minimumToAmount?: string;
+  destinationTxHash?: string; destinationExplorer?: string; routeExplorer?: string;
+  routeSubstatus?: string; routeMessage?: string;
+}
 
 export const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 const LIFI_BASE = 'https://li.quest/v1'
@@ -134,10 +143,7 @@ async function waitForReceipt(provider: Eip1193Provider, hash: string, onStatus:
   const started = Date.now()
   while (Date.now() - started < 180_000) {
     const receipt = await provider.request({ method:'eth_getTransactionReceipt', params:[hash] })
-    if (receipt) {
-      if (receipt.status && BigInt(receipt.status) === 0n) throw new Error('Transaction reverted on-chain. Check the transaction in your block explorer.')
-      return receipt
-    }
+    if (receipt) return receipt
     onStatus('Transaction submitted. Waiting for source-chain confirmation…')
     await new Promise(resolve => window.setTimeout(resolve, 2200))
   }
@@ -161,8 +167,21 @@ export function getSavedTransactions() { return readSavedTransactions() }
 export async function executeLifiQuote(options: {
   provider: Eip1193Provider; wallet: string; quote: LifiQuote; quotedAt: number; fromSymbol: string; toSymbol: string; amount: string;
   onStatus: (s:string)=>void;
+  onTransactionUpdate?: (tx: SavedTransaction)=>void;
 }): Promise<{txHash:string;status:string}> {
-  const { provider, wallet, quote, quotedAt, onStatus } = options
+  const { provider, wallet, quote, quotedAt, onStatus, onTransactionUpdate } = options
+  const receiptFields = (receipt: any) => {
+    const gasUsed = receipt?.gasUsed == null ? undefined : String(receipt.gasUsed)
+    const effectiveGasPrice = receipt?.effectiveGasPrice == null ? (receipt?.gasPrice == null ? undefined : String(receipt.gasPrice)) : String(receipt.effectiveGasPrice)
+    let actualGasFeeWei: string | undefined
+    try { if (gasUsed && effectiveGasPrice) actualGasFeeWei = (BigInt(gasUsed) * BigInt(effectiveGasPrice)).toString() } catch { /* ignore malformed optional receipt fields */ }
+    return {
+      blockNumber: receipt?.blockNumber == null ? undefined : String(receipt.blockNumber),
+      gasUsed, effectiveGasPrice, actualGasFeeWei,
+      receiptStatus: receipt?.status == null ? undefined : (BigInt(receipt.status) === 1n ? 'success' as const : 'failed' as const),
+    }
+  }
+  const notifySaved = (tx: SavedTransaction) => onTransactionUpdate?.(tx)
   if (Date.now() - quotedAt > 45_000) throw new Error('This quote is older than 45 seconds. Refresh it before executing.')
   if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) throw new Error('Connected wallet address is invalid.')
   if (!isEvmChainId(Number(quote.fromChainId))) throw new Error('This route starts on a non-EVM chain. Use the multi-wallet LI.FI panel to sign from that source chain.')
@@ -189,10 +208,27 @@ export async function executeLifiQuote(options: {
       onStatus(`Approval required for ${token.symbol}. Confirm the exact-amount approval in your wallet.`)
       const approveData = `0x095ea7b3${spender.slice(2).toLowerCase().padStart(64,'0')}${requiredAmount.toString(16).padStart(64,'0')}`
       const approvalHash = await provider.request({ method:'eth_sendTransaction', params:[{ from:wallet, to:token.address, data:approveData, value:'0x0' }] }) as string
-      onStatus('Approval submitted. Waiting for confirmation…')
-      await waitForReceipt(provider, approvalHash, onStatus)
-      saveTransaction({ id:approvalHash, type:'swap', fromChainId:Number(quote.fromChainId), toChainId:Number(quote.fromChainId), txHash:approvalHash, status:'Approval confirmed', createdAt:Date.now(), fromSymbol:token.symbol, toSymbol:token.symbol, amount:options.amount, explorer:`${Object.values(EVM_CHAINS).find(x=>x.id===Number(quote.fromChainId))?.explorer || 'https://etherscan.io'}/tx/${approvalHash}` })
-      throw new Error('Approval confirmed. Review and request a fresh quote, then press execute again.')
+      const approvalExplorer = `${Object.values(EVM_CHAINS).find(x=>x.id===Number(quote.fromChainId))?.explorer || 'https://etherscan.io'}/tx/${approvalHash}`
+      let approvalRecord: SavedTransaction = {
+        id:approvalHash, type:'approval', fromChainId:Number(quote.fromChainId), toChainId:Number(quote.fromChainId),
+        txHash:approvalHash, status:'Approval submitted · awaiting confirmation', createdAt:Date.now(),
+        fromSymbol:token.symbol, toSymbol:token.symbol, amount:options.amount, explorer:approvalExplorer,
+        fromAddress:wallet, transactionTarget:token.address,
+      }
+      saveTransaction(approvalRecord); notifySaved(approvalRecord)
+      onStatus(`Approval submitted: ${approvalHash}. Waiting for confirmation…`)
+      try {
+        const approvalReceipt = await waitForReceipt(provider, approvalHash, onStatus)
+        const fields = receiptFields(approvalReceipt)
+        approvalRecord = { ...approvalRecord, ...fields, status:fields.receiptStatus==='failed'?'Approval reverted on-chain':'Approval confirmed' }
+        updateTransaction(approvalHash, { ...fields, status:approvalRecord.status }); notifySaved(approvalRecord)
+        if (fields.receiptStatus === 'failed') throw new Error('The approval transaction reverted on-chain. Do not continue until you review it in the explorer.')
+      } catch (error) {
+        const current = { ...approvalRecord, status:approvalRecord.status.includes('reverted') ? approvalRecord.status : 'Approval submitted · confirmation pending' }
+        updateTransaction(approvalHash, { status:current.status }); notifySaved(current)
+        throw error
+      }
+      throw new Error(`Approval confirmed. Transaction: ${approvalHash}. Review and request a fresh quote, then press execute again.`)
     }
   }
 
@@ -202,18 +238,39 @@ export async function executeLifiQuote(options: {
   if (req.gasPrice) tx.gasPrice = String(req.gasPrice).startsWith('0x') ? String(req.gasPrice) : `0x${BigInt(req.gasPrice).toString(16)}`
   onStatus('Review the transaction target, amount and gas in your wallet before confirming.')
   const txHash = await provider.request({ method:'eth_sendTransaction', params:[tx] }) as string
+  if (!/^0x[a-fA-F0-9]{64}$/.test(txHash)) throw new Error('Wallet did not return a valid transaction hash.')
   const fromChainId = Number(quote.fromChainId), toChainId = Number(quote.toChainId)
-  const saved: SavedTransaction = { id:txHash, type:fromChainId===toChainId?'swap':'bridge', fromChainId, toChainId, txHash, status:'Submitted · awaiting confirmation', createdAt:Date.now(), fromSymbol:options.fromSymbol, toSymbol:options.toSymbol, amount:options.amount, explorer:`${Object.values(EVM_CHAINS).find(x=>x.id===fromChainId)?.explorer || 'https://etherscan.io'}/tx/${txHash}` }
-  saveTransaction(saved)
-  onStatus(`Transaction submitted: ${txHash}. Waiting for confirmation…`)
+  const saved: SavedTransaction = {
+    id:txHash, type:fromChainId===toChainId?'swap':'bridge', fromChainId, toChainId, txHash,
+    status:'Submitted · awaiting source confirmation', createdAt:Date.now(), fromSymbol:options.fromSymbol,
+    toSymbol:options.toSymbol, amount:options.amount,
+    estimatedToAmount:formatUnitsSafe(quote.estimate.toAmount, quote.action.toToken.decimals, 8),
+    minimumToAmount:formatUnitsSafe(quote.estimate.toAmountMin ?? quote.estimate.toAmount, quote.action.toToken.decimals, 8),
+    explorer:`${Object.values(EVM_CHAINS).find(x=>x.id===fromChainId)?.explorer || 'https://etherscan.io'}/tx/${txHash}`,
+    fromAddress:wallet, recipientAddress:quote.action?.toAddress || wallet, transactionTarget:req.to,
+  }
+  saveTransaction(saved); notifySaved(saved)
+  onStatus(`Transaction submitted: ${txHash}. Waiting for source-chain confirmation…`)
+  let receipt: any
   try {
-    await waitForReceipt(provider, txHash, onStatus)
+    receipt = await waitForReceipt(provider, txHash, onStatus)
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Transaction confirmation failed.'
-    updateTransaction(txHash, { status:message.includes('reverted')?'Reverted on-chain':'Submitted · confirmation pending' })
+    const pending = { ...saved, status:message.includes('reverted')?'Reverted on-chain':'Submitted · confirmation pending' }
+    updateTransaction(txHash, { status:pending.status }); notifySaved(pending)
     throw error
   }
-  updateTransaction(txHash, { status:fromChainId===toChainId?'Confirmed on-chain':'Source confirmed · bridge pending' })
+  const receiptData = receiptFields(receipt)
+  if (receiptData.receiptStatus === 'failed') {
+    const reverted = { ...saved, ...receiptData, status:'Reverted on-chain' }
+    updateTransaction(txHash, { ...receiptData, status:reverted.status }); notifySaved(reverted)
+    throw new Error(`Transaction ${txHash} reverted on-chain. Open the block explorer for the failure details.`)
+  }
+  const sourceConfirmed: SavedTransaction = {
+    ...saved, ...receiptData,
+    status:fromChainId===toChainId?'Confirmed on-chain':'Source confirmed · destination pending',
+  }
+  updateTransaction(txHash, { ...receiptData, status:sourceConfirmed.status }); notifySaved(sourceConfirmed)
   if (fromChainId === toChainId) return { txHash, status:'Confirmed on-chain' }
 
   onStatus('Source transaction confirmed. Checking destination settlement with LI.FI…')
@@ -221,8 +278,26 @@ export async function executeLifiQuote(options: {
     try {
       const status = await jsonFetch(`${LIFI_BASE}/status?${new URLSearchParams({ txHash, fromChain:String(fromChainId), toChain:String(toChainId) })}`, { headers:lifiHeaders })
       const normalized = String(status?.status || 'PENDING').toUpperCase()
-      if (normalized === 'DONE') { updateTransaction(txHash,{status:'Destination confirmed'}); return {txHash,status:'Destination confirmed'} }
-      if (normalized === 'FAILED') { updateTransaction(txHash,{status:'Bridge failed · source confirmed'}); throw new Error('The source transaction confirmed, but the bridge provider reports failure. Use the provider status page for recovery steps.') }
+      const receiving = status?.receiving || {}
+      const routePatch: Partial<SavedTransaction> = {
+        routeSubstatus: status?.substatus ? String(status.substatus) : undefined,
+        routeMessage: status?.substatusMessage ? String(status.substatusMessage) : undefined,
+        destinationTxHash: receiving?.txHash || status?.toTxHash || undefined,
+        destinationExplorer: receiving?.txLink || status?.toTxLink || status?.destinationExplorer || undefined,
+        routeExplorer: status?.lifiExplorerLink || status?.explorerLink || undefined,
+      }
+      const latest = { ...sourceConfirmed, ...routePatch }
+      updateTransaction(txHash, routePatch); notifySaved(latest)
+      if (normalized === 'DONE') {
+        const completed = { ...latest, status:'Destination confirmed' }
+        updateTransaction(txHash,{...routePatch,status:completed.status}); notifySaved(completed)
+        return {txHash,status:'Destination confirmed'}
+      }
+      if (normalized === 'FAILED') {
+        const failed = { ...latest, status:'Bridge failed · source confirmed' }
+        updateTransaction(txHash,{...routePatch,status:failed.status}); notifySaved(failed)
+        throw new Error('The source transaction confirmed, but the bridge provider reports failure. Use the route and explorer details in Activity before taking recovery action.')
+      }
       onStatus(`Bridge status: ${normalized.toLowerCase()}. Destination funds are not confirmed yet.`)
     } catch (error) {
       if (error instanceof Error && error.message.includes('provider reports failure')) throw error
@@ -230,7 +305,8 @@ export async function executeLifiQuote(options: {
     }
     await new Promise(resolve=>window.setTimeout(resolve, 10_000))
   }
-  updateTransaction(txHash,{status:'Source confirmed · destination pending'})
+  const pendingDestination = { ...sourceConfirmed, status:'Source confirmed · destination pending' }
+  updateTransaction(txHash,{status:pendingDestination.status}); notifySaved(pendingDestination)
   return {txHash,status:'Source confirmed · destination pending'}
 }
 

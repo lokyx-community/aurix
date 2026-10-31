@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 import LifiTradeWidget from './LifiTradeWidget'
 import PioSwapChat from './PioSwapChat'
 import { AdBanner, AnalyticsPage, LimitOrdersPage, LiquidityPage, StakingPage, recordPioSwapTransaction } from './OnchainFeatures'
-import { EVM_CHAINS, type Eip1193Provider, type LifiQuote, type ProviderToken, executeLifiQuote, fetchLifiTokens, formatUnitsSafe, getLifiQuote, isEvmChainId, parseUnitsSafe } from './integrations'
+import { EVM_CHAINS, type Eip1193Provider, type LifiQuote, type ProviderToken, type SavedTransaction, executeLifiQuote, fetchLifiTokens, formatUnitsSafe, getLifiQuote, getSavedTransactions, isEvmChainId, parseUnitsSafe, rpcRequest } from './integrations'
 import { encodeFunctionData, isAddress as isViemAddress } from 'viem'
 import {
   Activity, ArrowDownUp, ArrowLeftRight, ArrowRight, Bell, BookOpen, Check, ChevronDown,
   CircleHelp, Clock3, Command, Compass, Copy, ExternalLink, Eye, EyeOff, FileCheck2,
-  Globe2, Grid2X2, LayoutDashboard, LineChart, LockKeyhole, Menu, MoreHorizontal,
+  Globe2, Grid2X2, LayoutDashboard, LineChart, LockKeyhole, LogOut, Menu, MoreHorizontal,
   Plus, Search, Settings2, ShieldCheck, SlidersHorizontal, Sparkles, Star, TrendingDown, Coins,
   TrendingUp, Wallet, X, Zap, RefreshCw,
 } from 'lucide-react'
@@ -128,6 +129,7 @@ function App() {
   const [mobileNav, setMobileNav] = useState(false)
   const [wallet, setWallet] = useState('')
   const [walletBusy, setWalletBusy] = useState(false)
+  const [walletMenuOpen, setWalletMenuOpen] = useState(false)
   const [toast, setToast] = useState('')
   const [query, setQuery] = useState('')
   const [fromAsset, setFromAsset] = useState('ETH')
@@ -155,14 +157,18 @@ function App() {
     const provider = (window as Window & { ethereum?: { request: (args: {method:string}) => Promise<unknown>; on?: (event:string, callback:(value:unknown)=>void)=>void; removeListener?: (event:string, callback:(value:unknown)=>void)=>void } }).ethereum
     if (!provider) return
     const onAccountsChanged = (value: unknown) => {
+      if (localStorage.getItem('pioswap-wallet-disconnected') === '1') { setWallet(''); return }
       const accounts = Array.isArray(value) ? value as string[] : []
       setWallet(accounts[0] || '')
       if (!accounts[0]) setToast('Wallet disconnected from this site.')
     }
     provider.on?.('accountsChanged', onAccountsChanged)
-    void provider.request({ method: 'eth_accounts' }).then(value => {
-      if (Array.isArray(value) && typeof value[0] === 'string') setWallet(value[0])
-    }).catch(() => undefined)
+    if (localStorage.getItem('pioswap-wallet-disconnected') !== '1') {
+      void provider.request({ method: 'eth_accounts' }).then(value => {
+        if (localStorage.getItem('pioswap-wallet-disconnected') === '1') return
+        if (Array.isArray(value) && typeof value[0] === 'string') setWallet(value[0])
+      }).catch(() => undefined)
+    }
     return () => provider.removeListener?.('accountsChanged', onAccountsChanged)
   }, [])
   useEffect(() => {
@@ -224,16 +230,26 @@ function App() {
   const filteredAssets = useMemo(() => marketAssets.filter(a => `${a.symbol} ${a.name}`.toLowerCase().includes(query.toLowerCase())), [query, marketAssets])
   const notify = (msg: string) => setToast(msg)
   async function connectWallet() {
-    const eth = (window as Window & { ethereum?: { request: (args: {method:string}) => Promise<string[]> } }).ethereum
-    if (!eth) { notify('No injected wallet detected. Install MetaMask or a compatible wallet.'); return }
+    const eth = (window as Window & { ethereum?: { request: (args: {method:string;params?:unknown[]}) => Promise<string[]> } }).ethereum
+    if (!eth) { notify('No injected wallet detected. Open PioSwap inside your wallet browser or install MetaMask.'); return }
     setWalletBusy(true)
     try {
+      localStorage.removeItem('pioswap-wallet-disconnected')
       const accounts = await eth.request({ method: 'eth_requestAccounts' })
       if (accounts?.[0]) { setWallet(accounts[0]); setModal('none'); notify('Wallet connected.') }
       else notify('No wallet account was returned.')
     } catch (e) {
       notify(e instanceof Error ? e.message : 'Wallet connection was cancelled.')
     } finally { setWalletBusy(false) }
+  }
+  async function disconnectWallet() {
+    const eth = (window as Window & { ethereum?: { request: (args: {method:string;params?:unknown[]}) => Promise<unknown> } }).ethereum
+    localStorage.setItem('pioswap-wallet-disconnected', '1')
+    setWallet('')
+    setWalletMenuOpen(false)
+    setModal('none')
+    try { await eth?.request({ method:'wallet_revokePermissions', params:[{ eth_accounts:{} }] }) } catch { /* not all injected wallets implement permission revocation */ }
+    notify('Disconnected from PioSwap. Your wallet app may still list this site as connected; manage site permissions there to revoke access completely.')
   }
   function toggleWatch(symbol: string) {
     setWatchlist(prev => prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol])
@@ -287,7 +303,7 @@ function App() {
       @media (max-width: 640px) { .app .brand-coin { width: 35px; height: 35px; } .app .brand { gap: 7px; } }
       @media (prefers-reduced-motion: reduce) { .app .primary-button, .app .connect-button, .app .secondary-button { transition: none; } }
     `}</style>
-    <div className="ambient ambient-one" /><div className="ambient ambient-two" />
+    <div className="ambient ambient-one" /><div className="ambient ambient-two" /><div id="portal-root" />
     <header className="topbar">
       <button className="mobile-menu icon-button" aria-label="Open navigation" onClick={() => setMobileNav(!mobileNav)}>{mobileNav ? <X/> : <Menu/>}</button>
       <button className="brand-button" onClick={() => navTo('Overview')}><Brand /></button>
@@ -300,7 +316,15 @@ function App() {
       <div className="top-actions">
         <button className="icon-button" title="Search" onClick={() => setSearchOpen(!searchOpen)}><Search size={18}/></button>
         <button className="icon-button theme-toggle" title="Toggle theme" onClick={() => setTheme(theme === 'dark' ? 'light' : 'dark')}>{theme === 'dark' ? '☼' : '◐'}</button>
-        <button className="connect-button" onClick={() => wallet ? notify(`Connected: ${fmtAddress(wallet)}`) : setModal('connect')}>{wallet ? <><span className="online-dot"/> {fmtAddress(wallet)}</> : <><Wallet size={16}/> Connect wallet</>}</button>
+        {wallet ? <div className="wallet-control">
+          <button className="connect-button" aria-expanded={walletMenuOpen} onClick={() => setWalletMenuOpen(v=>!v)}><span className="online-dot"/> {fmtAddress(wallet)} <ChevronDown size={13}/></button>
+          {walletMenuOpen && <div className="wallet-menu" role="dialog" aria-label="Wallet actions">
+            <span className="wallet-menu-kicker">CONNECTED WALLET</span>
+            <strong>{fmtAddress(wallet)}</strong>
+            <button type="button" onClick={()=>{void navigator.clipboard?.writeText(wallet);notify('Wallet address copied.')}}><Copy size={14}/> Copy address</button>
+            <button type="button" className="wallet-disconnect-action" onClick={()=>void disconnectWallet()}><LogOut size={14}/> Disconnect from PioSwap</button>
+          </div>}
+        </div> : <button className="connect-button" onClick={() => setModal('connect')}><Wallet size={16}/> Connect wallet</button>}
       </div>
     </header>
 
@@ -344,7 +368,7 @@ function App() {
     {toast && <div className="toast"><Check size={16}/>{toast}<button onClick={()=>setToast('')}><X size={14}/></button></div>}
     {modal !== 'none' && <div className="modal-backdrop" onClick={()=>setModal('none')}><div className="modal" onClick={e=>e.stopPropagation()}>
       <button className="modal-close icon-button" onClick={()=>setModal('none')}><X size={18}/></button>
-      {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. PioSwap will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Connection only. Trading is not enabled in this preview.</div></> :
+      {modal==='connect' ? <><div className="modal-symbol"><Wallet size={24}/></div><h2>Connect your wallet</h2><p>Connect a self-custody wallet to view its public address. PioSwap will never ask for your recovery phrase.</p><button className="primary-button full" disabled={walletBusy} onClick={connectWallet}>{walletBusy?'Connecting…':'Connect browser wallet'} <ArrowRight size={16}/></button><div className="modal-note"><LockKeyhole size={14}/> Transactions are signed by your wallet. PioSwap never holds your funds.</div></> :
       <><div className="modal-symbol"><ShieldCheck size={24}/></div><h2>PIO setup required</h2><p>PIO-specific staking, liquidity and referral actions stay blocked until verified token and chain contracts are configured. Other swap or bridge routes may be available through their provider and still require you to review and confirm the exact transaction in your wallet.</p><button className="primary-button full" onClick={()=>setModal('none')}>Got it <Check size={16}/></button></>}
     </div></div>}
     <footer className="footer"><span>© 2026 PioSwap</span><span>Public market data · Built for clarity, not noise.</span><span className="preview-label"><span/> Preview · verify contracts before PIO transactions</span><AdBanner notify={notify}/></footer>
@@ -413,9 +437,25 @@ const chainMeta: Record<string,{logo:string;type:'ready'|'soon';native:string;ch
 }
 function ChainPicker({value,onChange,label}:{value:string;onChange:(v:string)=>void;label:string}) {
  const [open,setOpen]=useState(false); const [query,setQuery]=useState('')
+ useEffect(()=>{if(!open)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous}},[open])
  const options=Object.keys(chainMeta).filter(n=>n.toLowerCase().includes(query.toLowerCase()))
  const meta=chainMeta[value] || chainMeta.Ethereum
- return <div className="chain-picker-wrap"><span className="chain-picker-label">{label}</span><button type="button" className={`chain-picker-trigger ${open?'is-open':''}`} aria-expanded={open} onClick={()=>{setOpen(!open);setQuery('')}}><img src={meta.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span className="chain-picker-current"><strong>{value}</strong><small>{meta.type!=='ready'?'Coming soon':isEvmChainId(meta.chainId ?? 0)?'EVM network':'Multi-wallet route'}</small></span><ChevronDown size={16}/></button>{open&&<><button className="picker-scrim" aria-label="Close network selector" onClick={()=>setOpen(false)}/><div className="chain-picker-menu"><div className="chain-menu-title">Choose network <button type="button" className="icon-button" onClick={()=>setOpen(false)}><X size={15}/></button></div><div className="chain-menu-search"><Search size={15}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search networks"/></div><div className="chain-menu-list">{options.map(name=>{const item=chainMeta[name];return <button type="button" key={name} disabled={item.type==='soon'} className={`chain-menu-option ${name===value?'selected':''} ${item.type==='soon'?'coming-soon':''}`} onClick={()=>{if(item.type==='ready'){onChange(name);setOpen(false)}}}><img src={item.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span><strong>{name}</strong><small>{item.type==='ready'?`Native asset · ${item.native}`:'Coming soon'}</small></span>{item.type==='soon'?<em>Coming soon</em>:name===value?<Check size={16}/>:null}</button>})}</div></div></>}</div>
+ return <div className="chain-picker-wrap">
+   <span className="chain-picker-label">{label}</span>
+   <button type="button" className={`chain-picker-trigger ${open?'is-open':''}`} aria-expanded={open} onClick={()=>{setOpen(!open);setQuery('')}}>
+     <img src={meta.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/>
+     <span className="chain-picker-current"><strong>{value}</strong><small>{meta.type!=='ready'?'Coming soon':isEvmChainId(meta.chainId ?? 0)?'EVM network':'Multi-wallet route'}</small></span>
+     <ChevronDown size={16}/>
+   </button>
+   {open && createPortal(<>
+     <button className="picker-scrim" aria-label="Close network selector" onClick={()=>setOpen(false)}/>
+     <div className="chain-picker-menu" role="dialog" aria-modal="true" aria-label="Choose network">
+       <div className="chain-menu-title"><span>Choose network</span><button type="button" className="icon-button" onClick={()=>setOpen(false)}><X size={15}/></button></div>
+       <div className="chain-menu-search"><Search size={15}/><input autoFocus value={query} onChange={e=>setQuery(e.target.value)} placeholder="Search networks"/></div>
+       <div className="chain-menu-list">{options.map(name=>{const item=chainMeta[name];return <button type="button" key={name} disabled={item.type==='soon'} className={`chain-menu-option ${name===value?'selected':''} ${item.type==='soon'?'coming-soon':''}`} onClick={()=>{if(item.type==='ready'){onChange(name);setOpen(false)}}}><img src={item.logo} alt="" onError={e=>{e.currentTarget.style.visibility='hidden'}}/><span><strong>{name}</strong><small>{item.type==='ready'?`Native asset · ${item.native}`:'Coming soon'}</small></span>{item.type==='soon'?<em>Coming soon</em>:name===value?<Check size={16}/>:null}</button>})}</div>
+     </div>
+   </>, document.getElementById('portal-root') || document.body)}
+ </div>
 }
 
 const sanitizeAmount = (value: string) => {
@@ -454,6 +494,40 @@ function resolveProviderToken(tokens: ProviderToken[], symbol: string, selectedA
   return matches.find(t => !t.isNative && Boolean(t.logoURI) && Boolean(t.priceUSD))
     ?? matches.find(t => !t.isNative && Boolean(t.logoURI))
     ?? matches[0]
+}
+
+async function readEvmMaxAmount(chainName: string, symbol: string, wallet: string, selectedAddress?: string) {
+  const chain = EVM_CHAINS[chainName]
+  if (!chain) throw new Error('MAX balance lookup is available for EVM networks. Use the connected chain wallet for this network.')
+  const tokens = await fetchLifiTokens(chain.id)
+  const token = resolveProviderToken(tokens, symbol, selectedAddress)
+  let rawBalance: bigint
+  const isNative = token.isNative || token.address.toLowerCase() === '0x0000000000000000000000000000000000000000'
+  if (isNative) {
+    const [balanceHex, gasPriceHex] = await Promise.all([
+      rpcRequest(chain.rpc, 'eth_getBalance', [wallet, 'latest']),
+      rpcRequest(chain.rpc, 'eth_gasPrice', []),
+    ])
+    const balance = BigInt(String(balanceHex))
+    const gasPrice = BigInt(String(gasPriceHex))
+    // Keep a conservative source-chain gas reserve; the quote's final gas estimate may differ.
+    const gasReserve = gasPrice * 600_000n
+    rawBalance = balance > gasReserve ? balance - gasReserve : 0n
+  } else {
+    if (!/^0x[a-fA-F0-9]{40}$/.test(token.address)) throw new Error('The selected token contract address is invalid. Re-select the token from the provider list.')
+    const data = `0x70a08231${wallet.slice(2).toLowerCase().padStart(64, '0')}`
+    const balanceHex = await rpcRequest(chain.rpc, 'eth_call', [{ to: token.address, data }, 'latest'])
+    rawBalance = BigInt(String(balanceHex))
+  }
+  if (rawBalance <= 0n) throw new Error(`No spendable ${token.symbol} balance was found on ${chainName}. Check that the selected network and wallet are correct.`)
+  const tokenDecimals = Number(token.decimals)
+  if (!Number.isInteger(tokenDecimals) || tokenDecimals < 0 || tokenDecimals > 36) {
+    throw new Error(`The provider returned invalid decimals for ${token.symbol}. Re-select the token and try again.`)
+  }
+  const decimals = tokenDecimals
+  const formatted = formatUnitsSafe(rawBalance, decimals, Math.min(8, decimals)).replace(/,/g, '')
+  if (!formatted || Number(formatted) <= 0) throw new Error('The available balance is below the amount precision supported by this field.')
+  return { amount: formatted, label: `${formatUnitsSafe(rawBalance, decimals, Math.min(8, decimals))} ${token.symbol} available`, token }
 }
 
 function providerForTransactions(): Eip1193Provider | undefined {
@@ -501,6 +575,51 @@ function QuoteReview({ quote, fromToken, toToken, fromChainName, toChainName, qu
   </section>
 }
 
+function TransactionReceiptCard({ transaction }: { transaction: SavedTransaction }) {
+  const fromChain = Object.entries(EVM_CHAINS).find(([, chain]) => chain.id === transaction.fromChainId)
+  const toChain = Object.entries(EVM_CHAINS).find(([, chain]) => chain.id === transaction.toChainId)
+  const status = transaction.status || 'Submitted'
+  const statusTone = /revert|fail/i.test(status) ? 'error' : /pending|submitted|source confirmed/i.test(status) ? 'warning' : 'success'
+  const block = transaction.blockNumber ? (() => { try { return BigInt(transaction.blockNumber).toString() } catch { return transaction.blockNumber } })() : ''
+  const native = fromChain?.[1].native || 'native'
+  const fee = transaction.actualGasFeeWei ? `${formatUnitsSafe(transaction.actualGasFeeWei,18,8)} ${native}` : ''
+  return <section className="transaction-receipt-card" aria-live="polite">
+    <div className="transaction-receipt-heading">
+      <div><span className="eyebrow">TRANSACTION TRACKING</span><h3>{transaction.type==='approval'?'Token approval':transaction.type==='bridge'?'Cross-chain transfer':'Swap confirmation'}</h3></div>
+      <span className={`transaction-status-pill ${statusTone}`}>{status}</span>
+    </div>
+    <div className="transaction-hash-panel">
+      <span>TRANSACTION HASH</span>
+      <code>{transaction.txHash}</code>
+      <button type="button" onClick={()=>{void navigator.clipboard?.writeText(transaction.txHash)}}><Copy size={14}/> Copy hash</button>
+    </div>
+    <div className="transaction-detail-grid">
+      <div><span>Route</span><strong>{fromChain?.[0] || `Chain ${transaction.fromChainId}`} → {toChain?.[0] || `Chain ${transaction.toChainId}`}</strong></div>
+      <div><span>Asset</span><strong>{transaction.amount || '—'} {transaction.fromSymbol || ''}{transaction.toSymbol ? ` → ${transaction.toSymbol}` : ''}</strong></div>
+      {transaction.estimatedToAmount && <div><span>Quoted destination output</span><strong>{transaction.estimatedToAmount} {transaction.toSymbol || ''}</strong></div>}
+      {transaction.minimumToAmount && <div><span>Minimum quoted output</span><strong>{transaction.minimumToAmount} {transaction.toSymbol || ''}</strong></div>}
+      <div><span>Wallet</span><strong>{transaction.fromAddress ? fmtAddress(transaction.fromAddress) : '—'}</strong></div>
+      <div><span>Recipient</span><strong>{transaction.recipientAddress ? fmtAddress(transaction.recipientAddress) : '—'}</strong></div>
+      {block && <div><span>Block number</span><strong>{block}</strong></div>}
+      {transaction.gasUsed && <div><span>Gas used</span><strong>{formatUnitsSafe(transaction.gasUsed,0,0)}</strong></div>}
+      {fee && <div><span>Network fee</span><strong>{fee}</strong></div>}
+    </div>
+    {transaction.destinationTxHash && <div className="transaction-hash-panel destination-hash-panel">
+      <span>DESTINATION TRANSACTION HASH</span>
+      <code>{transaction.destinationTxHash}</code>
+      <button type="button" onClick={()=>{void navigator.clipboard?.writeText(transaction.destinationTxHash || '')}}><Copy size={14}/> Copy hash</button>
+    </div>}
+    <div className="transaction-receipt-footer">
+      <small>{transaction.routeSubstatus ? `${transaction.routeSubstatus}${transaction.routeMessage ? ` · ${transaction.routeMessage}` : ''}. ` : ''}{transaction.receiptStatus==='success'?'Source-chain receipt confirmed.':transaction.receiptStatus==='failed'?'The transaction reverted on-chain.':/destination confirmed/i.test(status)?'Destination settlement confirmed by the route provider.':/source confirmed/i.test(status)?'Source-chain confirmation recorded. Destination settlement is still being tracked.':'Hash recorded as soon as the wallet submitted the transaction.'}</small>
+      <span className="transaction-link-group">
+        {transaction.explorer && <a href={transaction.explorer} target="_blank" rel="noreferrer">Source explorer <ExternalLink size={13}/></a>}
+        {transaction.destinationExplorer && <a href={transaction.destinationExplorer} target="_blank" rel="noreferrer">Destination explorer <ExternalLink size={13}/></a>}
+        {transaction.routeExplorer && <a href={transaction.routeExplorer} target="_blank" rel="noreferrer">Track route <ExternalLink size={13}/></a>}
+      </span>
+    </div>
+  </section>
+}
+
 function RouteError({ message }: { message: string }) {
   return message ? <div className="route-error" role="alert"><ShieldCheck size={15}/><span>{message}</span></div> : null
 }
@@ -524,6 +643,9 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
   const [quoteError,setQuoteError] = useState('')
   const [executing,setExecuting] = useState(false)
   const [executionStatus,setExecutionStatus] = useState('')
+  const [maxLoading,setMaxLoading] = useState(false)
+  const [balanceLabel,setBalanceLabel] = useState('')
+  const [lastTransaction,setLastTransaction] = useState<SavedTransaction|null>(() => { try { return getSavedTransactions()[0] ?? null } catch { return null } })
   const [multiWalletOpen,setMultiWalletOpen] = useState(false)
   const [multiWalletTokens,setMultiWalletTokens] = useState<{from?:string;to?:string}>({})
   const chainTokens: Record<string,string[]> = {
@@ -532,6 +654,7 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
     'BNB Chain':['BNB','USDT','CAKE'], 'Avalanche':['AVAX','USDC','USDT','LINK']
   }
   const selectedChain = assetSelect === 'from' ? fromChain : toChain
+  useEffect(()=>{if(!assetSelect)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous}},[assetSelect])
   const fromChainId = chainMeta[fromChain]?.chainId ?? 1
   const toChainId = chainMeta[toChain]?.chainId ?? 1
   const multiEcosystemSource = !isEvmChainId(fromChainId)
@@ -569,6 +692,17 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
       if (!isEvmChainId(chainMeta[chain]?.chainId ?? 0)) setToAsset(chainMeta[chain]?.native ?? 'USDC')
       else if(!supportedToken(chain,toAsset)) setToAsset((chainTokens[chain]||[chainMeta[chain]?.native||'USDC'])[0])
     }
+  }
+  async function handleMax() {
+    if (!wallet) { onConnect(); return }
+    setMaxLoading(true); setQuoteError(''); setBalanceLabel('')
+    try {
+      const result = await readEvmMaxAmount(fromChain, fromAsset, wallet, fromTokenAddress || undefined)
+      setAmount(result.amount)
+      setBalanceLabel(result.label)
+    } catch (error) {
+      setQuoteError(error instanceof Error ? error.message : 'Could not read this token balance.')
+    } finally { setMaxLoading(false) }
   }
   async function findQuote() {
     setQuoteError(''); setExecutionStatus(''); setQuote(null); setQuoteTokens(null)
@@ -610,15 +744,20 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
     const provider = providerForTransactions()
     if (!provider) { setQuoteError('No injected EVM wallet is available. Reconnect and request a fresh quote.'); return }
     if (!wallet) { onConnect(); return }
-    setExecuting(true); setQuoteError(''); setExecutionStatus('Preparing transaction…')
+    setExecuting(true); setQuoteError(''); setExecutionStatus('Preparing transaction…'); setLastTransaction(null)
     try {
-      const result = await executeLifiQuote({ provider, wallet, quote, quotedAt, fromSymbol:quoteTokens.from.symbol, toSymbol:quoteTokens.to.symbol, amount, onStatus:setExecutionStatus })
+      const result = await executeLifiQuote({
+        provider, wallet, quote, quotedAt, fromSymbol:quoteTokens.from.symbol, toSymbol:quoteTokens.to.symbol, amount,
+        onStatus:setExecutionStatus, onTransactionUpdate:setLastTransaction,
+      })
       setExecutionStatus(`${result.status} · ${result.txHash}`)
-      recordPioSwapTransaction({ hash: result.txHash, fromSymbol: quoteTokens.from.symbol, toSymbol: quoteTokens.to.symbol, amount, chain: 'Swap · current source network', status: result.status })
+      const saved = getSavedTransactions().find(tx => tx.txHash === result.txHash)
+      if (saved) setLastTransaction(saved)
+      recordPioSwapTransaction({ hash: result.txHash, fromSymbol: quoteTokens.from.symbol, toSymbol: quoteTokens.to.symbol, amount, chain: `${fromChain} → ${toChain}`, status: result.status })
       notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
     } catch (e) {
       const message = e instanceof Error ? e.message : 'Transaction could not be completed.'
-      setQuoteError(message); setExecutionStatus('')
+      setQuoteError(message)
     } finally { setExecuting(false) }
   }
 
@@ -629,12 +768,19 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
       <div className="chain-pair-selectors"><ChainPicker label="PAY ON" value={fromChain} onChange={c=>chooseChain('from',c)}/><ChainPicker label="RECEIVE ON" value={toChain} onChange={c=>chooseChain('to',c)}/></div>
       <div className="swap-card-head"><div className="eyebrow">YOU PAY · {fromChain.toUpperCase()}</div><span className="muted-text">{wallet?`Wallet ${fmtAddress(wallet)}`:'Connect your wallet to see balances'}</span></div>
       <div className="amount-row"><input value={amount} onChange={e=>setAmount(sanitizeAmount(e.target.value))} placeholder="0.00" inputMode="decimal" aria-label="Amount to pay"/><button className="token-select" onClick={()=>{setAssetSelect('from');setTokenQuery('')}}><AssetIcon asset={from} size="sm"/>{from.symbol}<ChevronDown size={15}/></button></div>
-      <div className="amount-foot"><span>{from.price !== '—' ? `Market price ${from.price}` : 'USD estimate shown by the quote provider'}</span><button type="button" onClick={()=>{if(!wallet){onConnect();return}notify('Balance-aware MAX amount is not yet indexed for this token.')}}>MAX</button></div>
+      <div className="amount-foot"><span>{balanceLabel || (from.price !== '—' ? `Market price ${from.price}` : 'USD estimate shown by the quote provider')}</span><button type="button" disabled={maxLoading} onClick={()=>void handleMax()}>{maxLoading?'READING…':'MAX'}</button></div>
       <div className="swap-direction"><button className="round-icon" onClick={()=>{setFromAsset(toAsset);setToAsset(fromAsset);setFromChain(toChain);setToChain(fromChain);setFromTokenAddress(toTokenAddress);setToTokenAddress(fromTokenAddress)}} aria-label="Reverse assets and networks"><ArrowDownUp size={17}/></button></div>
       <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE · {toChain.toUpperCase()}</div><span className="muted-text">{quote ? 'Quote from LI.FI' : 'Estimated output'}</span></div>
       <div className="amount-row"><div className="output-amount">{quote && quoteTokens ? formatUnitsSafe(quote.estimate.toAmount, quoteTokens.to.decimals) : '—'}</div><button className="token-select" onClick={()=>{setAssetSelect('to');setTokenQuery('')}}><AssetIcon asset={to} size="sm"/>{to.symbol}<ChevronDown size={15}/></button></div>
       <div className="amount-foot"><span>{quote && quoteTokens ? `Minimum received ${formatUnitsSafe(quote.estimate.toAmountMin ?? quote.estimate.toAmount, quoteTokens.to.decimals)} ${quoteTokens.to.symbol}` : 'A route quote will estimate the amount after fees'}</span><span>{quote && quoteTokens ? usdValue(quote.estimate.toAmountUSD) : ''}</span></div>
-      {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'pay':'receive'} token · {assetSelect==='from'?fromChain:toChain}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><div className="token-picker-meta">{chainTokenList[selectedChain]?.length ? `${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens` : 'Loading the provider-listed token catalogue'}</div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search tokens by name or symbol"/>{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading verified network token list…</div>:tokenList.length?tokenList.slice(0,80).map(a=><button key={`${assetSelect}-${a.address||a.id||a.symbol}`} className="picker-row" onClick={()=>{if(assetSelect==='from'){setFromAsset(a.symbol);setFromTokenAddress(a.address||'')}else{setToAsset(a.symbol);setToTokenAddress(a.address||'')}setAssetSelect(null);setTokenQuery('')}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}{a.address?` · ${a.address.slice(0,6)}…${a.address.slice(-4)}`:''}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No provider-listed tokens matched. Check the network or search another symbol.</div>}</div>}
+      {assetSelect&&createPortal(<div className="asset-picker-overlay" role="presentation" onClick={()=>setAssetSelect(null)}>
+        <section className="asset-picker" role="dialog" aria-modal="true" aria-label={`Select ${assetSelect==='from'?'pay':'receive'} token`} onClick={e=>e.stopPropagation()}>
+          <div className="picker-head"><div><span className="eyebrow">TOKEN SELECTOR</span><strong>Select {assetSelect==='from'?'pay':'receive'} token · {assetSelect==='from'?fromChain:toChain}</strong></div><button className="icon-button" aria-label="Close token selector" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div>
+          <div className="token-picker-meta">{chainTokenList[selectedChain]?.length ? `${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens` : 'Loading the provider-listed token catalogue'}</div>
+          <input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search tokens by name or symbol"/>
+          <div className="asset-picker-list">{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading verified network token list…</div>:tokenList.length?tokenList.slice(0,80).map(a=><button key={`${assetSelect}-${a.address||a.id||a.symbol}`} className="picker-row" onClick={()=>{if(assetSelect==='from'){setFromAsset(a.symbol);setFromTokenAddress(a.address||'')}else{setToAsset(a.symbol);setToTokenAddress(a.address||'')}setAssetSelect(null);setTokenQuery('')}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}{a.address?` · ${a.address.slice(0,6)}…${a.address.slice(-4)}`:''}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No provider-listed tokens matched. Check the network or search another symbol.</div>}</div>
+        </section>
+      </div>,document.getElementById('portal-root') || document.body)}
       {!isEvmChainId(toChainId)&&<div className="recipient-address-field"><label>DESTINATION WALLET ADDRESS · {toChain.toUpperCase()}</label><input className="text-input" value={toAddress} onChange={e=>setToAddress(e.target.value)} placeholder={`Paste a ${toChain} receive address`}/><small>Required for a destination on a different wallet ecosystem. Confirm the address in your destination wallet before continuing.</small></div>}
       <div className="quote-summary"><div><span>Route</span><strong>{sameChain?'Same-chain swap':'Cross-chain route'}</strong></div><div><span>Network fee</span><strong>{quote?usdValue((quote.estimate.gasCosts||[]).reduce((sum,c)=>sum+Number(c.amountUSD||0),0)):'Shown in quote'}</strong></div><div><span>Slippage</span><strong>{slippage}%</strong></div><div><span>Provider</span><strong>{quote?.toolDetails?.name||'LI.FI'}</strong></div></div>
       <button className="disclosure-row" onClick={()=>setAdvanced(!advanced)}><span><Settings2 size={15}/> Advanced settings</span><ChevronDown size={15} className={advanced?'rotated':''}/></button>
@@ -643,6 +789,7 @@ function Swap({theme,assets,fromAsset,toAsset,setFromAsset,setToAsset,amount,set
       {multiWalletOpen&&<div className="multi-ecosystem-panel panel"><div className="multi-ecosystem-top"><div><div className="eyebrow">MULTI-WALLET ROUTE</div><h3>Connect the wallet for {fromChain}.</h3><p>This route starts on a non-EVM network, so its own wallet must sign. The amount and token selections above stay in your original PioSwap form.</p></div><button className="secondary-button" onClick={()=>setMultiWalletOpen(false)}>Close route panel</button></div><LifiTradeWidget appearance={theme} mode={sameChain?'swap':'bridge'} fromChainId={fromChainId} toChainId={toChainId} fromToken={multiWalletTokens.from} toToken={multiWalletTokens.to} fromAmount={amount}/></div>}
       <button className="primary-button full swap-cta" disabled={quoteLoading||executing} onClick={()=>void findQuote()}>{quoteLoading?'Finding the best route…':quote?'Refresh quote':'Find best route'} <ArrowRight size={16}/></button>
       {quote&&quoteTokens&&<QuoteReview quote={quote} fromToken={quoteTokens.from} toToken={quoteTokens.to} fromChainName={fromChain} toChainName={toChain} quotedAt={quotedAt} status={executionStatus} executing={executing} onRefresh={()=>void findQuote()} onExecute={()=>void executeQuote()}/>}
+      {lastTransaction && <TransactionReceiptCard transaction={lastTransaction}/>}
       <div className="safe-note"><ShieldCheck size={15}/> No transaction is submitted until you review and confirm it in the connected wallet.</div>
     </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Before you sign</strong></div><p>Quotes show the provider's live estimate. Compare minimum receive, fees, slippage and the destination address. Network switching may require a fresh quote.</p><ul><li><Check size={14}/> Live route quote</li><li><Check size={14}/> Token address match</li><li><Check size={14}/> Exact-amount approval where needed</li><li><Check size={14}/> On-chain receipt and bridge status</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO token details have not been supplied. The token remains non-tradable until its official chain and contract are verified.</p><span className="pill warning">Not tradable yet</span></div></aside></div>
   </div>
@@ -790,6 +937,9 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
   const [quoteError,setQuoteError]=useState('')
   const [executing,setExecuting]=useState(false)
   const [executionStatus,setExecutionStatus]=useState('')
+  const [maxLoading,setMaxLoading]=useState(false)
+  const [balanceLabel,setBalanceLabel]=useState('')
+  const [lastTransaction,setLastTransaction]=useState<SavedTransaction|null>(()=>{try{return getSavedTransactions()[0]??null}catch{return null}})
   const [multiWalletOpen,setMultiWalletOpen]=useState(false)
   const [multiWalletTokens,setMultiWalletTokens]=useState<{from?:string;to?:string}>({})
   const fromChainId=chainMeta[from]?.chainId??1
@@ -812,6 +962,7 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
   useEffect(()=>{setQuote(null);setQuoteTokens(null);setQuotedAt(0);setQuoteError('');setExecutionStatus('')},[from,to,fromAsset,toAsset,amount,toAddress,slippage,fromTokenAddress,toTokenAddress])
 
   const selectedChain=assetSelect==='from'?from:to
+  useEffect(()=>{if(!assetSelect)return;const previous=document.body.style.overflow;document.body.style.overflow='hidden';return()=>{document.body.style.overflow=previous}},[assetSelect])
   const tokenList=(chainTokenList[selectedChain]?.length?chainTokenList[selectedChain]:assets.filter(a=>['ETH','USDC','USDT','SOL','TRX','BTC','SUI','XLM'].includes(a.symbol)))
     .filter(a=>a.symbol!=='PIO'&&`${a.name} ${a.symbol}`.toLowerCase().includes(tokenQuery.toLowerCase()))
   const sourceToken=chainTokenList[from]?.find(a=>a.symbol===fromAsset&&(!fromTokenAddress||a.address===fromTokenAddress))??assets.find(a=>a.symbol===fromAsset)??fallbackNativeAsset(fromAsset,from,assets)
@@ -824,6 +975,15 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
       setTo(chain);setToTokenAddress('');if(!isEvmChainId(chainMeta[chain]?.chainId??0))setToAsset(chainMeta[chain]?.native??'USDC')
       else if(!['ETH','USDC','USDT','WBTC','LINK','UNI','ARB','OP','POL','BNB','AVAX','AERO','CAKE'].includes(toAsset))setToAsset('USDC')
     }
+  }
+  async function handleBridgeMax(){
+    if(!wallet){onConnect();return}
+    setMaxLoading(true);setQuoteError('');setBalanceLabel('')
+    try{
+      const result=await readEvmMaxAmount(from,fromAsset,wallet,fromTokenAddress||undefined)
+      setAmount(result.amount);setBalanceLabel(result.label)
+    }catch(e){setQuoteError(e instanceof Error?e.message:'Could not read this token balance.')}
+    finally{setMaxLoading(false)}
   }
   async function findBridgeQuote(){
     setQuoteError('');setQuote(null);setQuoteTokens(null);setExecutionStatus('')
@@ -858,11 +1018,19 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
     const provider=providerForTransactions()
     if(!provider){setQuoteError('No injected EVM wallet is available. Reconnect and request a fresh quote.');return}
     if(!wallet){onConnect();return}
-    setExecuting(true);setQuoteError('');setExecutionStatus('Preparing source transaction…')
+    setExecuting(true);setQuoteError('');setExecutionStatus('Preparing source transaction…');setLastTransaction(null)
     try{
-      const result=await executeLifiQuote({provider,wallet,quote,quotedAt,fromSymbol:quoteTokens.from.symbol,toSymbol:quoteTokens.to.symbol,amount,onStatus:setExecutionStatus})
-      setExecutionStatus(`${result.status} · ${result.txHash}`);recordPioSwapTransaction({ hash: result.txHash, fromSymbol: quoteTokens.from.symbol, toSymbol: quoteTokens.to.symbol, amount, chain: `Cross-chain · ${from} → ${to}`, status: result.status });notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
-    }catch(e){setQuoteError(e instanceof Error?e.message:'Bridge transaction could not be completed.');setExecutionStatus('')}
+      const result=await executeLifiQuote({
+        provider,wallet,quote,quotedAt,fromSymbol:quoteTokens.from.symbol,toSymbol:quoteTokens.to.symbol,amount,
+        onStatus:setExecutionStatus,onTransactionUpdate:setLastTransaction,
+      })
+      setExecutionStatus(`${result.status} · ${result.txHash}`)
+      const saved=getSavedTransactions().find(tx=>tx.txHash===result.txHash)
+      if(saved)setLastTransaction(saved)
+      recordPioSwapTransaction({ hash: result.txHash, fromSymbol: quoteTokens.from.symbol, toSymbol: quoteTokens.to.symbol, amount, chain: `Cross-chain · ${from} → ${to}`, status: result.status });notify(`${result.status}. Transaction: ${result.txHash.slice(0,10)}…`)
+    }catch(e){
+      setQuoteError(e instanceof Error?e.message:'Bridge transaction could not be completed.')
+    }
     finally{setExecuting(false)}
   }
 
@@ -870,12 +1038,19 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
     <div className="chain-pair-selectors"><ChainPicker label="FROM NETWORK" value={from} onChange={chain=>chooseNetwork('from',chain)}/><ChainPicker label="TO NETWORK" value={to} onChange={chain=>chooseNetwork('to',chain)}/></div>
     <div className="swap-card-head"><div className="eyebrow">YOU SEND · {from.toUpperCase()}</div><span className="muted-text">{wallet?`Wallet ${fmtAddress(wallet)}`:'Connect your source wallet to continue'}</span></div>
     <div className="amount-row bridge-amount"><input value={amount} onChange={e=>setAmount(sanitizeAmount(e.target.value))} placeholder="0.00" inputMode="decimal" aria-label="Amount to bridge"/><button className="token-select" onClick={()=>{setAssetSelect('from');setTokenQuery('')}}><AssetIcon asset={sourceToken} size="sm"/>{sourceToken.symbol}<ChevronDown size={15}/></button></div>
-    <div className="amount-foot"><span>{sourceToken.price!=='—'?`Market price ${sourceToken.price}`:'Provider quote calculates output and fees'}</span><button type="button" onClick={()=>notify('Balance-based MAX is not yet enabled for this token. Enter the amount you want to bridge.')}>MAX</button></div>
+    <div className="amount-foot"><span>{balanceLabel||(sourceToken.price!=='—'?`Market price ${sourceToken.price}`:'Provider quote calculates output and fees')}</span><button type="button" disabled={maxLoading} onClick={()=>void handleBridgeMax()}>{maxLoading?'READING…':'MAX'}</button></div>
     <div className="bridge-switch"><button className="round-icon" onClick={()=>{setFrom(to);setTo(from);setFromAsset(toAsset);setToAsset(fromAsset);setFromTokenAddress(toTokenAddress);setToTokenAddress(fromTokenAddress)}} aria-label="Reverse bridge networks and assets"><ArrowDownUp size={16}/></button></div>
     <div className="swap-card-head"><div className="eyebrow">YOU RECEIVE · {to.toUpperCase()}</div><span className="muted-text">{quote?'Live quote':'Estimate after route fees'}</span></div>
     <div className="amount-row"><div className="output-amount">{quote&&quoteTokens?formatUnitsSafe(quote.estimate.toAmount,quoteTokens.to.decimals):'—'}</div><button className="token-select" onClick={()=>{setAssetSelect('to');setTokenQuery('')}}><AssetIcon asset={destinationToken} size="sm"/>{destinationToken.symbol}<ChevronDown size={15}/></button></div>
     <div className="amount-foot"><span>{quote&&quoteTokens?`Minimum receive ${formatUnitsSafe(quote.estimate.toAmountMin??quote.estimate.toAmount,quoteTokens.to.decimals)} ${quoteTokens.to.symbol}`:'Final receive amount depends on route and fees'}</span><span>{quote?usdValue(quote.estimate.toAmountUSD):''}</span></div>
-    {assetSelect&&<div className="asset-picker"><div className="picker-head"><strong>Select {assetSelect==='from'?'source':'destination'} token · {assetSelect==='from'?from:to}</strong><button className="icon-button" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div><div className="token-picker-meta">{chainTokenList[selectedChain]?.length?`${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens`:'Search LI.FI-listed tokens on the selected network'}</div><input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search token name or symbol"/>{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading token catalogue…</div>:tokenList.length?tokenList.slice(0,80).map(a=><button key={`${assetSelect}-${a.address||a.id||a.symbol}`} className="picker-row" onClick={()=>{if(assetSelect==='from'){setFromAsset(a.symbol);setFromTokenAddress(a.address||'')}else{setToAsset(a.symbol);setToTokenAddress(a.address||'')}setAssetSelect(null);setTokenQuery('')}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}{a.address?` · ${a.address.slice(0,6)}…${a.address.slice(-4)}`:''}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No tokens found for this search.</div>}</div>}
+    {assetSelect&&createPortal(<div className="asset-picker-overlay" role="presentation" onClick={()=>setAssetSelect(null)}>
+      <section className="asset-picker" role="dialog" aria-modal="true" aria-label={`Select ${assetSelect==='from'?'source':'destination'} token`} onClick={e=>e.stopPropagation()}>
+        <div className="picker-head"><div><span className="eyebrow">TOKEN SELECTOR</span><strong>Select {assetSelect==='from'?'source':'destination'} token · {assetSelect==='from'?from:to}</strong></div><button className="icon-button" aria-label="Close token selector" onClick={()=>setAssetSelect(null)}><X size={16}/></button></div>
+        <div className="token-picker-meta">{chainTokenList[selectedChain]?.length?`${chainTokenList[selectedChain].length.toLocaleString()} provider-listed tokens`:'Search LI.FI-listed tokens on the selected network'}</div>
+        <input className="text-input token-search-input" value={tokenQuery} onChange={e=>setTokenQuery(e.target.value)} placeholder="Search token name or symbol"/>
+        <div className="asset-picker-list">{tokenListLoading&&!chainTokenList[selectedChain]?.length?<div className="picker-empty">Loading token catalogue…</div>:tokenList.length?tokenList.slice(0,80).map(a=><button key={`${assetSelect}-${a.address||a.id||a.symbol}`} className="picker-row" onClick={()=>{if(assetSelect==='from'){setFromAsset(a.symbol);setFromTokenAddress(a.address||'')}else{setToAsset(a.symbol);setToTokenAddress(a.address||'')}setAssetSelect(null);setTokenQuery('')}}><AssetIcon asset={a}/><span>{a.name}<small>{a.symbol}{a.address?` · ${a.address.slice(0,6)}…${a.address.slice(-4)}`:''}</small></span><ArrowRight size={15}/></button>):<div className="picker-empty">No tokens found for this search.</div>}</div>
+      </section>
+    </div>,document.getElementById('portal-root') || document.body)}
     {!isEvmChainId(toChainId)&&<div className="recipient-address-field"><label>DESTINATION WALLET ADDRESS · {to.toUpperCase()}</label><input className="text-input" value={toAddress} onChange={e=>setToAddress(e.target.value)} placeholder={`Paste the destination ${to} address`}/><small>For a different wallet ecosystem, use an address from the destination wallet. Verify it carefully before signing.</small></div>}
     <div className="quote-summary"><div><span>Route</span><strong>Cross-chain bridge</strong></div><div><span>Provider</span><strong>{quote?.toolDetails?.name||'LI.FI'}</strong></div><div><span>Slippage</span><strong>{slippage}%</strong></div><div><span>Status</span><strong>{quote?'Quote ready':'Awaiting quote'}</strong></div></div>
     <button className="disclosure-row" onClick={()=>setAdvanced(!advanced)}><span><Settings2 size={15}/> Advanced settings</span><ChevronDown size={15} className={advanced?'rotated':''}/></button>
@@ -884,6 +1059,7 @@ function CrossChain({theme,assets,wallet,onConnect,notify}:{theme:'dark'|'light'
     {multiWalletOpen&&<div className="multi-ecosystem-panel panel"><div className="multi-ecosystem-top"><div><div className="eyebrow">MULTI-WALLET ROUTE</div><h3>Connect the wallet for {from}.</h3><p>This source chain uses its own wallet signer. Your original source/destination fields and amount remain available above.</p></div><button className="secondary-button" onClick={()=>setMultiWalletOpen(false)}>Close route panel</button></div><LifiTradeWidget appearance={theme} mode="bridge" fromChainId={fromChainId} toChainId={toChainId} fromToken={multiWalletTokens.from} toToken={multiWalletTokens.to} fromAmount={amount}/></div>}
     <button className="primary-button full swap-cta" disabled={quoteLoading||executing} onClick={()=>void findBridgeQuote()}>{quoteLoading?'Searching bridge routes…':quote?'Refresh bridge quote':'Find bridge route'} <ArrowRight size={16}/></button>
     {quote&&quoteTokens&&<QuoteReview quote={quote} fromToken={quoteTokens.from} toToken={quoteTokens.to} fromChainName={from} toChainName={to} quotedAt={quotedAt} status={executionStatus} executing={executing} onRefresh={()=>void findBridgeQuote()} onExecute={()=>void executeBridge()}/>}
+    {lastTransaction && <TransactionReceiptCard transaction={lastTransaction}/>}
     <div className="safe-note"><ShieldCheck size={15}/> Source confirmation and destination settlement are tracked separately. Never close the app until you have recorded the transaction hash.</div>
   </div><aside className="swap-aside"><div className="panel aside-panel"><div className="aside-heading"><ShieldCheck size={18}/><strong>Bridge review</strong></div><p>Read the destination address, minimum receive and fee estimates. When the source is EVM, the source transaction is signed in your injected wallet; non-EVM source routes use the compatible LI.FI wallet panel.</p><ul><li><Check size={14}/> Provider route and fees</li><li><Check size={14}/> Destination address confirmation</li><li><Check size={14}/> Source-chain receipt</li><li><Check size={14}/> Destination settlement status</li></ul></div><div className="panel aside-panel"><div className="eyebrow">PIO ASSET STATUS</div><h3>Verification pending</h3><p>PIO is not included until its official token contract and decimals are verified.</p><span className="pill warning">Not tradable yet</span></div></aside></div></div>
 }
@@ -981,7 +1157,44 @@ function Portfolio({privacy,setPrivacy,wallet,assets,onConnect}:{privacy:boolean
   return <div className="page-content"><PageHeader eyebrow="MANAGE / PORTFOLIO" title="Your assets, in context." description="Native balances are queried directly from supported EVM networks. Token balances and full portfolio indexing are not included yet." right={<button className="icon-button" onClick={()=>setPrivacy(!privacy)} aria-label={privacy?'Show portfolio values':'Hide portfolio values'}>{privacy?<Eye size={17}/>:<EyeOff size={17}/>}</button>}/><div className="portfolio-overview-grid"><div className="panel portfolio-large"><span className="muted-label">ESTIMATED NATIVE-ASSET VALUE</span><div className="portfolio-value">{privacy?'••••••':holdings.length?`${hasUnpriced?'≈ ':''}${formatUsd(total)}`:'— — —'}</div><div className="portfolio-sub">{wallet?loading?'Reading balances from public RPCs…':`Connected ${fmtAddress(wallet)} · ${holdings.length} native balance${holdings.length===1?'':'s'} found`:'No wallet connected'}</div><div className="allocation-empty"><div className="empty-ring"/><span>Value excludes ERC-20/SPL tokens and may be partial. Missing prices are not counted as zero.</span></div>{!wallet&&<button className="primary-button" onClick={onConnect}>Connect wallet <ArrowRight size={15}/></button>}</div><div className="panel portfolio-large"><div className="panel-top"><h3>Network exposure</h3><Globe2 size={17}/></div>{holdings.length?<div className="native-holdings">{holdings.map(h=><div className="native-holding-row" key={h.chain}><span>{h.chain}</span><strong>{privacy?'••••':`${h.balance} ${h.symbol}`}</strong></div>)}</div>:<div className="empty-state"><div className="empty-icon"><Grid2X2 size={22}/></div><strong>{loading?'Checking supported networks…':'No native balances found'}</strong><p>{wallet?'Only supported EVM native assets are queried. Other chains show as coming soon.':'Connect a wallet to read public on-chain balances.'}</p></div>}</div></div><div className="panel market-panel"><div className="section-in-panel"><h3>Native asset holdings</h3><span className="pill neutral">{loading?'Refreshing':holdings.length?'RPC data':'No data'}</span></div>{loadError&&<div className="data-note">{loadError}</div>}{holdings.length?<div className="native-holdings">{holdings.map(h=><div className="native-holding-row" key={h.chain}><div><strong>{h.symbol}</strong><small>{h.chain} · {h.status}</small></div><strong>{privacy?'••••':`${h.balance} ${h.symbol}`}</strong><strong>{privacy?'••••':h.usd===null?'Price unavailable':formatUsd(h.usd)}</strong></div>)}</div>:<div className="empty-state compact"><Wallet size={24}/><strong>{loading?'Loading balances':'No native balances to display'}</strong><p>{wallet?'Token balances require a token indexer; this page currently queries native coin balances only.':'Connect a wallet to begin.'}</p></div>}{wallet&&<button className="secondary-button" onClick={()=>setRefreshKey(k=>k+1)}>Refresh balances</button>}</div></div>
 }
 function ActivityPage({wallet}:{wallet:string}) {
-  return <div className="page-content"><PageHeader eyebrow="MANAGE / ACTIVITY" title="Every step, visible." description="A single view of supported on-chain activity, with statuses backed by verified transaction data."/><div className="activity-filters">{['All','Swaps','Cross-chain','Approvals'].map((t,i)=><button key={t} className={i===0?'selected':''}>{t}</button>)}</div><div className="panel empty-state large"><div className="empty-icon"><Activity size={24}/></div><strong>{wallet?'No indexed activity yet':'Connect a wallet to begin'}</strong><p>{wallet?'An activity indexer is not configured, so no transaction history can be shown.':'PioSwap will only display transactions that can be verified from supported chain data.'}</p></div></div>
+  const [records,setRecords]=useState<SavedTransaction[]>([])
+  const [filter,setFilter]=useState('All')
+  useEffect(()=>{
+    const refresh=()=>{try{setRecords(getSavedTransactions())}catch{setRecords([])}}
+    refresh()
+    window.addEventListener('pioswap-transactions-updated',refresh)
+    return()=>window.removeEventListener('pioswap-transactions-updated',refresh)
+  },[])
+  const filtered=records.filter(tx=>filter==='All'||(filter==='Cross-chain'?tx.type==='bridge':filter==='Approvals'?tx.type==='approval':tx.type==='swap'))
+  const chainName=(id:number)=>Object.entries(EVM_CHAINS).find(([,chain])=>chain.id===id)?.[0]||`Chain ${id}`
+  return <div className="page-content">
+    <PageHeader eyebrow="MANAGE / ACTIVITY" title="Every step, visible." description="Wallet-submitted transactions, source-chain receipts and cross-chain settlement states, recorded in this browser."/>
+    <div className="activity-filters">{['All','Swaps','Cross-chain','Approvals'].map(t=><button key={t} className={filter===t?'selected':''} onClick={()=>setFilter(t)}>{t}</button>)}</div>
+    {filtered.length ? <div className="activity-transaction-list">
+      {filtered.map(tx=><article className="activity-transaction-card" key={tx.id}>
+        <div className="activity-transaction-top">
+          <div><span className="eyebrow">{tx.type==='approval'?'TOKEN APPROVAL':tx.type==='bridge'?'CROSS-CHAIN ROUTE':'SWAP'}</span><strong>{tx.fromSymbol||'—'}{tx.toSymbol?` → ${tx.toSymbol}`:''}</strong></div>
+          <span className={`transaction-status-pill ${/revert|fail/i.test(tx.status)?'error':/pending|submitted|source confirmed/i.test(tx.status)?'warning':'success'}`}>{tx.status}</span>
+        </div>
+        <div className="activity-transaction-meta">
+          <span>{chainName(tx.fromChainId)} → {chainName(tx.toChainId)}</span>
+          <span>{tx.amount||'—'} {tx.fromSymbol||''}{tx.estimatedToAmount ? ` → ~${tx.estimatedToAmount} ${tx.toSymbol||''}` : ''}</span>
+          <span>{new Date(tx.createdAt).toLocaleString()}</span>
+        </div>
+        <div className="activity-hash-row"><code>{tx.txHash}</code><button type="button" className="secondary-button" onClick={()=>{void navigator.clipboard?.writeText(tx.txHash)}}><Copy size={13}/> Copy</button></div>
+        {tx.destinationTxHash && <div className="activity-hash-row destination-activity-hash"><code>{tx.destinationTxHash}</code><button type="button" className="secondary-button" onClick={()=>{void navigator.clipboard?.writeText(tx.destinationTxHash || '')}}><Copy size={13}/> Copy destination</button></div>}
+        <div className="activity-transaction-footer">
+          <span>{tx.blockNumber?`Source block ${(()=>{try{return BigInt(tx.blockNumber).toString()}catch{return tx.blockNumber}})()}`:'Source block details pending'}</span>
+          <span className="transaction-link-group">
+            {tx.explorer&&<a href={tx.explorer} target="_blank" rel="noreferrer">Source explorer <ExternalLink size={13}/></a>}
+            {tx.destinationExplorer&&<a href={tx.destinationExplorer} target="_blank" rel="noreferrer">Destination explorer <ExternalLink size={13}/></a>}
+            {tx.routeExplorer&&<a href={tx.routeExplorer} target="_blank" rel="noreferrer">Route <ExternalLink size={13}/></a>}
+          </span>
+        </div>
+      </article>)}
+    </div> : <div className="panel empty-state large"><div className="empty-icon"><Activity size={24}/></div><strong>{wallet?'No wallet transactions have been saved in this browser':'Connect a wallet to begin'}</strong><p>{wallet?'If your earlier swap was submitted on this device, check your wallet Activity for its hash. Transactions saved by PioSwap will appear here after the page reloads.':'PioSwap records the transaction hash immediately after wallet submission. You can open the block explorer to verify every step.'}</p></div>}
+    <div className="data-note"><ShieldCheck size={14}/> This is local browser history, not an indexed account history. The block explorer is the source of truth for on-chain status and token transfers.</div>
+  </div>
 }
 function TokenExplorer({assets:rows,query,setQuery}:{assets:Asset[];query:string;setQuery:(s:string)=>void}) {
   return <div className="page-content"><PageHeader eyebrow="DISCOVER / TOKEN EXPLORER" title="Look closer." description="Search assets and distinguish token identity from liquidity and risk."/><div className="search-field explorer-search"><Search size={17}/><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="Token name, symbol, or contract address"/></div><div className="panel market-panel"><AssetTable rows={rows} watchlist={[]} toggleWatch={()=>{}} onSelect={()=>{}}/><div className="data-note"><ShieldCheck size={15}/> PIO identity and contract details are not yet configured. Verification is not a guarantee of safety.</div></div><div className="panel explainer"><h3>What verification means</h3><div className="explainer-grid"><div><strong>Identity</strong><p>Network, contract address, decimals, and authoritative references.</p></div><div><strong>Market quality</strong><p>Liquidity and pricing quality when reliable data is available.</p></div><div><strong>Risk signals</strong><p>Independent warnings where supported, without a universal safety guarantee.</p></div></div></div></div>
